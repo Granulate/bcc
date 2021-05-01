@@ -379,7 +379,21 @@ std::string PyPerfProfiler::getSymbolName(Symbol& sym) const {
   }
 
   std::string module = file;
-  module = std::regex_replace(module, std::regex{R"(^(/opt|/usr(/local)?))"}, "");
+  /*
+  Derive the module name from the file path. This covers the most common cases: built-ins, installed packages, and zip imports.
+  Alternatively we could traverse the path looking for the package root (highest __init__.py file). Though it still wouldn't cover
+  arbitrary importers.
+
+  Strip the following in order:
+    1. For zip packages: path to the zip file.
+    2. Installation prefix: /usr, /usr/local, /opt, /opt/python*
+    3. Path to the packages root: /lib/python* for built-in package, followed by site/dist-packages for installed packages.
+    4. Leading slash.
+    5. .py file extension.
+  Then replace all slashes with periods.
+  */
+  module = std::regex_replace(module, std::regex{R"(^.*?\.zip/)"}, "");
+  module = std::regex_replace(module, std::regex{R"(^(/usr(/local)?|/opt(/python[23](\.[0-9]+)?)?))"}, "");
   module = std::regex_replace(module, std::regex{R"(^/lib/python[23](\.[0-9]+)?(/(site|dist)\-packages)?)"}, "");
   module = std::regex_replace(module, std::regex{R"(^/)"}, "");
   module = std::regex_replace(module, std::regex{R"(\.(py|pyc|pyo)$)"}, "");
