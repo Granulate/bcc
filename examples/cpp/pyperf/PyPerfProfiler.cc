@@ -388,7 +388,7 @@ std::string PyPerfProfiler::getSymbolName(Symbol& sym) const {
     1. Path to all packages root: <prefix>/lib(32/64)/python* for built-in package, followed by site/dist-packages for
        installed packages.
     2. Path to this package root: Leading slash. If it's a zip package, then strip the zip file path.
-    5. .py file extension.
+    3. .py file extension.
   Then replace all slashes with periods.
   */
   module = std::regex_replace(module, std::regex{R"(^.*/lib(32|64)?/python[23](\.[0-9]+)?(/(site|dist)\-packages)?)"}, "");
