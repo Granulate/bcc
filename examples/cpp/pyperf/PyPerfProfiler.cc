@@ -380,22 +380,19 @@ std::string PyPerfProfiler::getSymbolName(Symbol& sym) const {
 
   std::string module = file;
   /*
-  Derive the module name from the file path. This covers the most common cases: built-ins, installed packages, and zip imports.
-  Alternatively we could traverse the path looking for the package root (highest __init__.py file). Though it still wouldn't cover
-  arbitrary importers.
+  Derive the module name from the file path. This covers the most common cases: built-ins, installed packages, and zip
+  imports. Alternatively we could traverse the path looking for the package root (highest __init__.py file). Though it
+  still wouldn't cover arbitrary importers.
 
   Strip the following in order:
-    1. For zip packages: path to the zip file.
-    2. Installation prefix: /usr, /usr/local, /opt, /opt/python*
-    3. Path to the packages root: /lib(32/64)/python* for built-in package, followed by site/dist-packages for installed packages.
-    4. Leading slash.
+    1. Path to all packages root: <prefix>/lib(32/64)/python* for built-in package, followed by site/dist-packages for
+       installed packages.
+    2. Path to this package root: Leading slash. If it's a zip package, then strip the zip file path.
     5. .py file extension.
   Then replace all slashes with periods.
   */
-  module = std::regex_replace(module, std::regex{R"(^.*?\.zip/)"}, "");
-  module = std::regex_replace(module, std::regex{R"(^(/usr(/local)?|/opt(/python[23](\.[0-9]+)?)?))"}, "");
-  module = std::regex_replace(module, std::regex{R"(^/lib(32|64)?/python[23](\.[0-9]+)?(/(site|dist)\-packages)?)"}, "");
-  module = std::regex_replace(module, std::regex{R"(^/)"}, "");
+  module = std::regex_replace(module, std::regex{R"(^.*/lib(32|64)?/python[23](\.[0-9]+)?(/(site|dist)\-packages)?)"}, "");
+  module = std::regex_replace(module, std::regex{R"(^(.*?\.zip)?/)"}, "");
   module = std::regex_replace(module, std::regex{R"(\.(py|pyc|pyo)$)"}, "");
   std::replace(module.begin(), module.end(), '/', '.');
   return module + "." + nameStr + " (" + file + ")";
