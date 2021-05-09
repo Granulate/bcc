@@ -75,14 +75,14 @@ void PyPerfCollapsedPrinter::processSamples(
   auto symbols = util->getSymbolMapping();
   for (auto& sample : samples) {
     int frames = 0;
-    std::fprintf(output_file, "%s-%d/%d[p]", sample.comm.c_str(), sample.pid, sample.tid);
+    std::fprintf(output_file, "%s-%d/%d_[p]", sample.comm.c_str(), sample.pid, sample.tid);
     switch (sample.stackStatus) {
     case STACK_STATUS_TRUNCATED:
-      std::fprintf(output_file, ";%s[p]", kIncompleteStack.c_str());
+      std::fprintf(output_file, ";%s_[p]", kIncompleteStack.c_str());
       truncatedStack++;
       break;
     case STACK_STATUS_ERROR:
-      std::fprintf(output_file, ";%s[p]", kErrorStack.c_str());
+      std::fprintf(output_file, ";%s_[p]", kErrorStack.c_str());
       errors++;
       break;
     default:
@@ -90,10 +90,10 @@ void PyPerfCollapsedPrinter::processSamples(
         const auto stackId = *it;
         auto symbIt = symbols.find(stackId);
         if (symbIt != symbols.end()) {
-          std::fprintf(output_file, ";%s[p]", symbIt->second.c_str());
+          std::fprintf(output_file, ";%s_[p]", symbIt->second.c_str());
           frames++;
         } else {
-          std::fprintf(output_file, ";%s[p]", kLostSymbol.c_str());
+          std::fprintf(output_file, ";%s_[p]", kLostSymbol.c_str());
           lostSymbols++;
         }
       }
