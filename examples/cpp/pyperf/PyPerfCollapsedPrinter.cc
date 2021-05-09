@@ -75,7 +75,7 @@ void PyPerfCollapsedPrinter::processSamples(
   auto symbols = util->getSymbolMapping();
   for (auto& sample : samples) {
     int frames = 0;
-    std::fprintf(output_file, "%s-%d/%d_[p]", sample.comm.c_str(), sample.pid, sample.tid);
+    std::fprintf(output_file, "%s-%d/%d", sample.comm.c_str(), sample.pid, sample.tid);
     switch (sample.stackStatus) {
     case STACK_STATUS_TRUNCATED:
       std::fprintf(output_file, ";%s_[p]", kIncompleteStack.c_str());
