@@ -78,11 +78,11 @@ void PyPerfCollapsedPrinter::processSamples(
     std::fprintf(output_file, "%s-%d/%d", sample.comm.c_str(), sample.pid, sample.tid);
     switch (sample.stackStatus) {
     case STACK_STATUS_TRUNCATED:
-      std::fprintf(output_file, ";%s_[p]", kIncompleteStack.c_str());
+      std::fprintf(output_file, ";%s_[pe]", kIncompleteStack.c_str());
       truncatedStack++;
       break;
     case STACK_STATUS_ERROR:
-      std::fprintf(output_file, ";%s_[p]", kErrorStack.c_str());
+      std::fprintf(output_file, ";%s_[pe]", kErrorStack.c_str());
       errors++;
       break;
     default:
