@@ -93,7 +93,7 @@ void PyPerfCollapsedPrinter::processSamples(
           std::fprintf(output_file, ";%s_[p]", symbIt->second.c_str());
           frames++;
         } else {
-          std::fprintf(output_file, ";%s_[p]", kLostSymbol.c_str());
+          std::fprintf(output_file, ";%s_[pe]", kLostSymbol.c_str());
           lostSymbols++;
         }
       }
