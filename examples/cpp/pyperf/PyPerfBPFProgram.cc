@@ -17,6 +17,8 @@ extern const std::string PYPERF_BPF_PROGRAM = R"(
 #include <linux/sched.h>
 #include <uapi/linux/ptrace.h>
 
+#define BAD_THREAD_ID (~0)
+
 // Maximum threads: 32x8 = 256
 #define THREAD_STATES_PER_PROG 32
 #define THREAD_STATES_PROG_CNT 8
@@ -43,6 +45,7 @@ enum error_code {
   ERROR_THREAD_STATE_NOT_FOUND = 5,
   ERROR_EMPTY_STACK = 6,
   ERROR_FRAME_CODE_IS_NULL = 7,
+  ERROR_BAD_THREAD_ID = 8,
 };
 
 /**
@@ -216,7 +219,7 @@ get_task_thread_id(struct task_struct const *task, enum pthreads_impl pthreads_i
 
   default:
     // driver passed bad value
-    return ~0;
+    return BAD_THREAD_ID;
   }
 
 #else  // __x86_64__
@@ -308,11 +311,15 @@ on_event(struct pt_regs* ctx) {
     }
   }
 
-  event->error_code = ERROR_THREAD_STATE_NOT_FOUND;
-
   // Get current thread id:
   struct task_struct const *const task = (struct task_struct *)bpf_get_current_task();
   state->current_thread_id = get_task_thread_id(task, pid_data->pthreads_impl);
+  if (state->current_thread_id == BAD_THREAD_ID) {
+    event->error_code = ERROR_BAD_THREAD_ID;
+    goto submit;
+  }
+
+  event->error_code = ERROR_THREAD_STATE_NOT_FOUND;
 
   // Copy some required info:
   state->offsets = pid_data->offsets;
