@@ -65,7 +65,7 @@ class PyPerfProfiler {
   };
 
   // init must be invoked exactly once before invoking profile
-  PyPerfResult init();
+  PyPerfResult init(int symbolsMapSize = 16384);
 
   PyPerfResult profile(int64_t sampleRate, int64_t sampleFreq, int64_t duration,
                        PyPerfSampleProcessor* processor);

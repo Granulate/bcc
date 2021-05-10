@@ -57,7 +57,6 @@ const static int kGetThreadStateProgIdx = 1;
 
 const static std::string kNumCpusFlag("-DNUM_CPUS=");
 const static std::string kSymbolsHashSizeFlag("-D__SYMBOLS_SIZE__=");
-const static int kSymbolsHashSize = 16384;
 
 namespace {
 
@@ -163,10 +162,10 @@ void handleLostSamplesCallback(void* cb_cookie, uint64_t lost_cnt) {
   profiler->handleLostSamples(lost_cnt);
 }
 
-PyPerfProfiler::PyPerfResult PyPerfProfiler::init() {
+PyPerfProfiler::PyPerfResult PyPerfProfiler::init(int symbolsMapSize) {
   std::vector<std::string> cflags;
   cflags.emplace_back(kNumCpusFlag + std::to_string(::sysconf(_SC_NPROCESSORS_ONLN)));
-  cflags.emplace_back(kSymbolsHashSizeFlag + std::to_string(kSymbolsHashSize));
+  cflags.emplace_back(kSymbolsHashSizeFlag + std::to_string(symbolsMapSize));
   cflags.emplace_back(kPythonStackProgIdxFlag + std::to_string(kPythonStackProgIdx));
   cflags.emplace_back(kGetThreadStateProgIdxFlag + std::to_string(kGetThreadStateProgIdx));
 

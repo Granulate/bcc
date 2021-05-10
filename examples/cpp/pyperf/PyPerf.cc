@@ -90,6 +90,7 @@ int main(int argc, char** argv) {
   // Default argument values
   std::vector<uint64_t> pids;
   uint64_t updateIntervalSecs = 10;
+  uint64_t symbolsMapSize = 16384;
   uint64_t sampleRate = 0;
   uint64_t sampleFreq = 0;
   uint64_t duration = 0;
@@ -106,6 +107,7 @@ int main(int argc, char** argv) {
     found = found || parseIntArg({"-F", "--frequency"}, sampleFreq);
     found = found || parseIntArg({"-d", "--duration"}, duration);
     found = found || parseIntArg({"--update-interval"}, updateIntervalSecs);
+    found = found || parseIntArg({"--symbols-map-size"}, symbolsMapSize);
     found = found || parseIntArg({"-v", "--verbose"}, verbosityLevel);
     found = found || parseStrArg({"-o", "--output"}, output);
     if (!found) {
@@ -141,7 +143,7 @@ int main(int argc, char** argv) {
     ebpf::pyperf::PyPerfProfiler profiler;
     profiler.update_interval = std::chrono::seconds{updateIntervalSecs};
 
-    auto res = profiler.init();
+    auto res = profiler.init(symbolsMapSize);
     if (res != ebpf::pyperf::PyPerfProfiler::PyPerfResult::SUCCESS) {
       std::exit((int)res);
     }
