@@ -195,6 +195,7 @@ get_task_thread_id(struct task_struct const *task, enum pthreads_impl pthreads_i
 
 #ifdef __x86_64__
 
+  int ret;
   uint64_t fsbase;
   // thread_struct->fs was renamed to fsbase in
   // https://github.com/torvalds/linux/commit/296f781a4b7801ad9c1c0219f9e87b6c25e196fe
@@ -208,17 +209,21 @@ get_task_thread_id(struct task_struct const *task, enum pthreads_impl pthreads_i
   switch (pthreads_impl) {
   case PTI_GLIBC:
     // 0x10 = offsetof(tcbhead_t, self)
-    bpf_probe_read_user(&pthread_self, sizeof(pthread_self), (void *)(fsbase + 0x10));
+    ret = bpf_probe_read_user(&pthread_self, sizeof(pthread_self), (void *)(fsbase + 0x10));
     break;
 
   case PTI_MUSL:
     // __pthread_self / __get_tp reads %fs:0x0
     // which corresponds to the field "self" in struct pthread
-    bpf_probe_read_user(&pthread_self, sizeof(pthread_self), (void *)fsbase);
+    ret = bpf_probe_read_user(&pthread_self, sizeof(pthread_self), (void *)fsbase);
     break;
 
   default:
     // driver passed bad value
+    return BAD_THREAD_ID;
+  }
+
+  if (ret < 0) {
     return BAD_THREAD_ID;
   }
 
