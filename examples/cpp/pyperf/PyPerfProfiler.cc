@@ -55,6 +55,8 @@ const static int kGetThreadStateProgIdx = 1;
 
 const static std::string kNumCpusFlag("-DNUM_CPUS=");
 const static std::string kSymbolsHashSizeFlag("-D__SYMBOLS_SIZE__=");
+const static std::string kStackTracesSizeFlag("-D__STACKS_SIZE__=");
+const static int kStackTracesSize = 16384;
 
 namespace {
 
@@ -164,6 +166,7 @@ PyPerfProfiler::PyPerfResult PyPerfProfiler::init(int symbolsMapSize, int events
   std::vector<std::string> cflags;
   cflags.emplace_back(kNumCpusFlag + std::to_string(::sysconf(_SC_NPROCESSORS_ONLN)));
   cflags.emplace_back(kSymbolsHashSizeFlag + std::to_string(symbolsMapSize));
+  cflags.emplace_back(kStackTracesSizeFlag + std::to_string(kStackTracesSize));
   cflags.emplace_back(kPythonStackProgIdxFlag + std::to_string(kPythonStackProgIdx));
   cflags.emplace_back(kGetThreadStateProgIdxFlag + std::to_string(kGetThreadStateProgIdx));
 

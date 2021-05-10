@@ -153,6 +153,7 @@ struct event {
   char comm[TASK_COMM_LEN];
   uint8_t error_code;
   uint8_t stack_status;
+  int kernel_stack_id;
   // instead of storing symbol name here directly, we add it to another
   // hashmap with Symbols and only store the ids here
   uint64_t stack_len;
@@ -185,6 +186,8 @@ BPF_PROG_ARRAY(progs, 2);
 
 BPF_PERCPU_ARRAY(state_heap, struct sample_state, 1);
 BPF_PERF_OUTPUT(events);
+
+BPF_STACK_TRACE(stack_traces, __STACKS_SIZE__);
 
 /**
 Get the thread id for a task just as Python would. Currently assumes Python uses pthreads.
@@ -576,6 +579,7 @@ int read_python_stack(struct pt_regs* ctx) {
         &state->frame_ptr, sizeof(state->frame_ptr),
         cur_frame + state->offsets.PyFrameObject.f_back);
     if (!state->frame_ptr) {
+      event->kernel_stack_id = stack_traces.get_stackid(ctx, 0);
       goto complete;
     }
   }

@@ -73,6 +73,7 @@ void PyPerfCollapsedPrinter::processSamples(
   uint32_t truncatedStack = 0;
 
   auto symbols = util->getSymbolMapping();
+  auto stackTraces = util->getStackTraces();
   for (auto& sample : samples) {
     int frames = 0;
     std::fprintf(output_file, "%s-%d/%d", sample.comm.c_str(), sample.pid, sample.tid);
@@ -96,6 +97,12 @@ void PyPerfCollapsedPrinter::processSamples(
           std::fprintf(output_file, ";%s", kLostSymbol.c_str());
           lostSymbols++;
         }
+      }
+      // TODO check 0 >
+      auto stacks = stackTraces.get_stack_symbol(sample.kernelStackId, -1);
+      for (auto it = stacks.crbegin(); it != stacks.crend(); ++it) {
+        auto sym = *it;
+        std::fprintf(output_file, ";%s", sym.c_str());
       }
       break;
     }
