@@ -65,7 +65,7 @@ class PyPerfProfiler {
   };
 
   // init must be invoked exactly once before invoking profile
-  PyPerfResult init(int symbolsMapSize, int eventsBufferPages);
+  PyPerfResult init(unsigned int symbolsMapSize, unsigned int eventsBufferPages, unsigned int kernelStacksMapSize);
 
   PyPerfResult profile(int64_t sampleRate, int64_t sampleFreq, int64_t duration,
                        PyPerfSampleProcessor* processor);

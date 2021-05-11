@@ -187,7 +187,7 @@ BPF_PROG_ARRAY(progs, 2);
 BPF_PERCPU_ARRAY(state_heap, struct sample_state, 1);
 BPF_PERF_OUTPUT(events);
 
-BPF_STACK_TRACE(stack_traces, __STACKS_SIZE__);
+BPF_STACK_TRACE(stack_traces, __KERNEL_STACKS_SIZE__);
 
 /**
 Get the thread id for a task just as Python would. Currently assumes Python uses pthreads.
