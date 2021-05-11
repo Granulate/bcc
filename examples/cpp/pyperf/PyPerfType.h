@@ -61,8 +61,12 @@ ERROR_EMPTY_STACK:
 ERROR_FRAME_CODE_IS_NULL:
   The f_code field of a stack frame points to NULL.
 
-ERROR_NO_THREAD_ID:
-  Reading the thread id failed.
+ERROR_BAD_FSBASE:
+  Reading data from the thread descriptor (at %fs) faulted. This can happen when a new thread is created but pthreads
+  has not initialized in that thread yet.
+
+ERROR_INVALID_PTHREADS_IMPL:
+  The pthreads implementation set for the process is invalid.
 
 ERROR_THREAD_STATE_HEAD_NULL:
   Read the pointer to the head of the thread states list from the PyInterpreterState and got NULL.
@@ -79,9 +83,10 @@ enum error_code {
   ERROR_THREAD_STATE_NOT_FOUND = 5,
   ERROR_EMPTY_STACK = 6,
   ERROR_FRAME_CODE_IS_NULL = 7,
-  ERROR_NO_THREAD_ID = 8,
-  ERROR_THREAD_STATE_HEAD_NULL = 9,
-  ERROR_BAD_THREAD_STATE = 10,
+  ERROR_BAD_FSBASE = 8,
+  ERROR_INVALID_PTHREADS_IMPL = 9,
+  ERROR_THREAD_STATE_HEAD_NULL = 10,
+  ERROR_BAD_THREAD_STATE = 11,
 };
 
 /**

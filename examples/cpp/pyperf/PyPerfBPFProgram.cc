@@ -45,9 +45,10 @@ enum error_code {
   ERROR_THREAD_STATE_NOT_FOUND = 5,
   ERROR_EMPTY_STACK = 6,
   ERROR_FRAME_CODE_IS_NULL = 7,
-  ERROR_NO_THREAD_ID = 8,
-  ERROR_THREAD_STATE_HEAD_NULL = 9,
-  ERROR_BAD_THREAD_STATE = 10,
+  ERROR_BAD_FSBASE = 8,
+  ERROR_INVALID_PTHREADS_IMPL = 9,
+  ERROR_THREAD_STATE_HEAD_NULL = 10,
+  ERROR_BAD_THREAD_STATE = 11,
 };
 
 /**
@@ -188,52 +189,51 @@ BPF_PERF_OUTPUT(events);
 /**
 Get the thread id for a task just as Python would. Currently assumes Python uses pthreads.
 */
-static __always_inline uint64_t
-get_task_thread_id(struct task_struct const *task, enum pthreads_impl pthreads_impl) {
+static __always_inline int
+get_task_thread_id(struct task_struct const *task, enum pthreads_impl pthreads_impl, uint64_t *thread_id) {
   // The thread id that is written in the PyThreadState is the value of `pthread_self()`.
   // For glibc, corresponds to THREAD_SELF in "tls.h" in glibc source.
   // For musl, see definition of `__pthread_self`.
-  uint64_t pthread_self;
 
 #ifdef __x86_64__
+// thread_struct->fs was renamed to fsbase in
+// https://github.com/torvalds/linux/commit/296f781a4b7801ad9c1c0219f9e87b6c25e196fe
+// so depending on kernel version, we need to account for that
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+#define THREAD_FSBASE(task) (task->thread.fs)
+#else
+#define THREAD_FSBASE(task) (task->thread.fsbase)
+#endif
 
   int ret;
-  uint64_t fsbase;
-  // thread_struct->fs was renamed to fsbase in
-  // https://github.com/torvalds/linux/commit/296f781a4b7801ad9c1c0219f9e87b6c25e196fe
-  // so depending on kernel version, we need to account for that
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
-  fsbase = task->thread.fs;
-#else
-  fsbase = task->thread.fsbase;
-#endif
+  uint64_t fsbase = THREAD_FSBASE(task);
 
   switch (pthreads_impl) {
   case PTI_GLIBC:
     // 0x10 = offsetof(tcbhead_t, self)
-    ret = bpf_probe_read_user(&pthread_self, sizeof(pthread_self), (void *)(fsbase + 0x10));
+    ret = bpf_probe_read_user(thread_id, sizeof(*thread_id), (void *)(fsbase + 0x10));
     break;
 
   case PTI_MUSL:
     // __pthread_self / __get_tp reads %fs:0x0
     // which corresponds to the field "self" in struct pthread
-    ret = bpf_probe_read_user(&pthread_self, sizeof(pthread_self), (void *)fsbase);
+    ret = bpf_probe_read_user(thread_id, sizeof(*thread_id), (void *)fsbase);
     break;
 
   default:
     // driver passed bad value
-    return BAD_THREAD_ID;
+    return ERROR_INVALID_PTHREADS_IMPL;
   }
 
   if (ret < 0) {
-    return BAD_THREAD_ID;
+    return ERROR_BAD_FSBASE;
   }
+
+  return ERROR_NONE;
 
 #else  // __x86_64__
 #error "Unsupported platform"
 #endif // __x86_64__
-
-  return pthread_self;
 }
 
 // this function is trivial, but we need to do map lookup in separate function,
@@ -322,9 +322,8 @@ on_event(struct pt_regs* ctx) {
 
   // Get current thread id:
   struct task_struct const *const task = (struct task_struct *)bpf_get_current_task();
-  state->current_thread_id = get_task_thread_id(task, pid_data->pthreads_impl);
-  if (state->current_thread_id == BAD_THREAD_ID) {
-    event->error_code = ERROR_NO_THREAD_ID;
+  event->error_code = get_task_thread_id(task, pid_data->pthreads_impl, &state->current_thread_id);
+  if (event->error_code != ERROR_NONE) {
     goto submit;
   }
 
