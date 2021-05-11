@@ -47,6 +47,7 @@ enum error_code {
   ERROR_FRAME_CODE_IS_NULL = 7,
   ERROR_NO_THREAD_ID = 8,
   ERROR_THREAD_STATE_HEAD_NULL = 9,
+  ERROR_BAD_THREAD_STATE = 10,
 };
 
 /**
@@ -256,9 +257,11 @@ Get a PyThreadState's thread id.
 static __always_inline uint64_t
 read_tstate_thread_id(uintptr_t thread_state, struct struct_offsets *offsets) {
     uint64_t thread_id;
-    bpf_probe_read_user(
-        &thread_id, sizeof(thread_id),
-        (void *)(thread_state + offsets->PyThreadState.thread));
+    int ret = bpf_probe_read_user(&thread_id, sizeof(thread_id),
+                                  (void *)(thread_state + offsets->PyThreadState.thread));
+    if (ret < 0) {
+      return BAD_THREAD_ID;
+    }
     return thread_id;
 }
 
@@ -369,6 +372,9 @@ get_thread_state(struct pt_regs *ctx) {
     if (thread_id == state->current_thread_id) {
       goto found;
     }
+    else if (unlikely(thread_id == BAD_THREAD_ID)) {
+      goto bad_thread_state;
+    }
     // Read next thread state:
     bpf_probe_read_user(
       &state->thread_state, sizeof(state->thread_state),
@@ -388,10 +394,6 @@ get_thread_state(struct pt_regs *ctx) {
   // <unreachable>
 
 found:
-  // Initialize stack info in case any subprogram below fails
-  event->stack_status = STACK_STATUS_ERROR;
-  event->stack_len = 0;
-
   // Get pointer to top frame from PyThreadState
   bpf_probe_read_user(
       &state->frame_ptr, sizeof(state->frame_ptr),
@@ -401,14 +403,23 @@ found:
     goto submit;
   }
 
-  // we are gonna need this later:
+  // Reset the error code
+  event->error_code = ERROR_NONE;
+
+  // Initialize stack info in case any subprogram below fails
+  event->stack_status = STACK_STATUS_ERROR;
+  event->stack_len = 0;
+
+  // We are going to need this later
   state->cur_cpu = bpf_get_smp_processor_id();
 
-  // jump to reading first set of Python frames
+  // Jump to reading first set of Python frames
   state->python_stack_prog_call_cnt = 0;
   progs.call(ctx, PYTHON_STACK_PROG_IDX);
   // <unreachable>
 
+bad_thread_state:
+  event->error_code = ERROR_BAD_THREAD_STATE;
 submit:
   events.perf_submit(ctx, &state->event, sizeof(struct event));
   return 0;

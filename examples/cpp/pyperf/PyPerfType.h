@@ -66,6 +66,9 @@ ERROR_NO_THREAD_ID:
 
 ERROR_THREAD_STATE_HEAD_NULL:
   Read the pointer to the head of the thread states list from the PyInterpreterState and got NULL.
+
+ERROR_BAD_THREAD_STATE:
+  Reading a field from a thread state in the thread states list failed.
 */
 enum error_code {
   ERROR_NONE = 0,
@@ -78,6 +81,7 @@ enum error_code {
   ERROR_FRAME_CODE_IS_NULL = 7,
   ERROR_NO_THREAD_ID = 8,
   ERROR_THREAD_STATE_HEAD_NULL = 9,
+  ERROR_BAD_THREAD_STATE = 10,
 };
 
 /**
