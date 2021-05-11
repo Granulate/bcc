@@ -45,7 +45,8 @@ enum error_code {
   ERROR_THREAD_STATE_NOT_FOUND = 5,
   ERROR_EMPTY_STACK = 6,
   ERROR_FRAME_CODE_IS_NULL = 7,
-  ERROR_BAD_THREAD_ID = 8,
+  ERROR_NO_THREAD_ID = 8,
+  ERROR_THREAD_STATE_HEAD_NULL = 9,
 };
 
 /**
@@ -320,11 +321,9 @@ on_event(struct pt_regs* ctx) {
   struct task_struct const *const task = (struct task_struct *)bpf_get_current_task();
   state->current_thread_id = get_task_thread_id(task, pid_data->pthreads_impl);
   if (state->current_thread_id == BAD_THREAD_ID) {
-    event->error_code = ERROR_BAD_THREAD_ID;
+    event->error_code = ERROR_NO_THREAD_ID;
     goto submit;
   }
-
-  event->error_code = ERROR_THREAD_STATE_NOT_FOUND;
 
   // Copy some required info:
   state->offsets = pid_data->offsets;
@@ -336,10 +335,12 @@ on_event(struct pt_regs* ctx) {
     &state->thread_state, sizeof(state->thread_state),
     (void *)(state->interp_head + pid_data->offsets.PyInterpreterState.tstate_head));
   if (state->thread_state == 0) {
+    event->error_code = ERROR_THREAD_STATE_HEAD_NULL;
     goto submit;
   }
 
   // Call get_thread_state to find the PyThreadState of this thread:
+  event->error_code = ERROR_THREAD_STATE_NOT_FOUND;
   state->get_thread_state_call_count = 0;
   progs.call(ctx, GET_THREAD_STATE_PROG_IDX);
 
