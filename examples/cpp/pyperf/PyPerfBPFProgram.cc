@@ -598,7 +598,7 @@ no_code:
   goto submit;
 
 complete:
-  event->kernel_stack_id = stack_traces.get_stackid(ctx, 0);
+  event->kernel_stack_id = stack_traces.get_stackid(ctx, BPF_F_REUSE_STACKID);
   event->error_code = ERROR_NONE;
   event->stack_status = STACK_STATUS_COMPLETE;
 submit:
