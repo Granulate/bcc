@@ -68,9 +68,10 @@ void PyPerfCollapsedPrinter::prepare() {
 
 void PyPerfCollapsedPrinter::processSamples(
     const std::vector<PyPerfSample>& samples, PyPerfProfiler* util) {
-  uint32_t errors = 0;
-  uint32_t lostSymbols = 0;
-  uint32_t truncatedStack = 0;
+  unsigned int errors = 0;
+  unsigned int lostSymbols = 0;
+  unsigned int truncatedStack = 0;
+  unsigned int kernelStackErrors = 0;
 
   auto symbols = util->getSymbolMapping();
   auto stackTraces = util->getStackTraces();
@@ -98,11 +99,14 @@ void PyPerfCollapsedPrinter::processSamples(
           lostSymbols++;
         }
       }
-      // TODO check 0 >
-      auto stacks = stackTraces.get_stack_symbol(sample.kernelStackId, -1);
-      for (auto it = stacks.crbegin(); it != stacks.crend(); ++it) {
-        auto sym = *it;
-        std::fprintf(output_file, ";%s_[k]", sym.c_str());
+      if (sample.kernelStackId > 0) {
+        auto stacks = stackTraces.get_stack_symbol(sample.kernelStackId, -1);
+        for (auto it = stacks.crbegin(); it != stacks.crend(); ++it) {
+          auto sym = *it;
+          std::fprintf(output_file, ";%s_[k]", sym.c_str());
+        }
+      } else if (sample.kernelStackId != -EFAULT) {
+        kernelStackErrors++;
       }
       break;
     }
@@ -117,6 +121,7 @@ void PyPerfCollapsedPrinter::processSamples(
   std::fprintf(stderr, "%d samples lost\n", util->getLostSamples());
   std::fprintf(stderr, "%d samples with truncated stack\n", truncatedStack);
   std::fprintf(stderr, "%d times Python symbol lost\n", lostSymbols);
+  std::fprintf(stderr, "%d kernel stack errors\n", kernelStackErrors);
   std::fprintf(stderr, "%d errors\n", errors);
 
   if (!output_.empty()) {
