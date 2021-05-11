@@ -206,7 +206,10 @@ get_task_thread_id(struct task_struct const *task, enum pthreads_impl pthreads_i
 #endif
 
   int ret;
-  uint64_t fsbase = THREAD_FSBASE(task);
+  uint64_t fsbase;
+  // HACK: Usually BCC would translate a deref of the field into `read_kernel` for us, but it
+  //       doesn't detect it due to the macro (because it transforms before preprocessing).
+  bpf_probe_read_kernel(&fsbase, sizeof(fsbase), &THREAD_FSBASE(task));
 
   switch (pthreads_impl) {
   case PTI_GLIBC:
