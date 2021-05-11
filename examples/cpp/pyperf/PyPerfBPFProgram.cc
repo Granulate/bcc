@@ -579,7 +579,6 @@ int read_python_stack(struct pt_regs* ctx) {
         &state->frame_ptr, sizeof(state->frame_ptr),
         cur_frame + state->offsets.PyFrameObject.f_back);
     if (!state->frame_ptr) {
-      event->kernel_stack_id = stack_traces.get_stackid(ctx, 0);
       goto complete;
     }
   }
@@ -599,6 +598,7 @@ no_code:
   goto submit;
 
 complete:
+  event->kernel_stack_id = stack_traces.get_stackid(ctx, 0);
   event->error_code = ERROR_NONE;
   event->stack_status = STACK_STATUS_COMPLETE;
 submit:
