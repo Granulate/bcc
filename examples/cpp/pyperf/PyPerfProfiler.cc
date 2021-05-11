@@ -327,6 +327,7 @@ PyPerfProfiler::PyPerfResult PyPerfProfiler::profile(
       processor->processSamples(samples_, this);
       samples_.clear();
       totalSamples_ = 0;
+      lostSamples_ = 0;
       processor->prepare();
     }
   }
