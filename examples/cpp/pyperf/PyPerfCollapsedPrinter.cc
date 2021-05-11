@@ -102,7 +102,7 @@ void PyPerfCollapsedPrinter::processSamples(
       auto stacks = stackTraces.get_stack_symbol(sample.kernelStackId, -1);
       for (auto it = stacks.crbegin(); it != stacks.crend(); ++it) {
         auto sym = *it;
-        std::fprintf(output_file, ";%s", sym.c_str());
+        std::fprintf(output_file, ";%s_[k]", sym.c_str());
       }
       break;
     }
