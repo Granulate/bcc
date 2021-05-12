@@ -65,7 +65,7 @@ class PyPerfProfiler {
   };
 
   // init must be invoked exactly once before invoking profile
-  PyPerfResult init(int symbolsMapSize = 16384);
+  PyPerfResult init(int symbolsMapSize, int eventsBufferPages);
 
   PyPerfResult profile(int64_t sampleRate, int64_t sampleFreq, int64_t duration,
                        PyPerfSampleProcessor* processor);
@@ -82,6 +82,7 @@ class PyPerfProfiler {
   std::chrono::seconds update_interval;
 
  private:
+  int eventsBufferPages_;
   uint32_t totalSamples_ = 0, lostSamples_ = 0;
 
   ebpf::BPF bpf_{0, nullptr, false, "", true};

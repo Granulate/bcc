@@ -40,8 +40,6 @@ using namespace std::chrono_literals;
 
 extern std::string PYPERF_BPF_PROGRAM;
 
-const static int kPerfBufSizePages = 32;
-
 const static std::string kPidCfgTableName("pid_config");
 const static std::string kProgsTableName("progs");
 const static std::string kSamplePerfBufName("events");
@@ -162,7 +160,7 @@ void handleLostSamplesCallback(void* cb_cookie, uint64_t lost_cnt) {
   profiler->handleLostSamples(lost_cnt);
 }
 
-PyPerfProfiler::PyPerfResult PyPerfProfiler::init(int symbolsMapSize) {
+PyPerfProfiler::PyPerfResult PyPerfProfiler::init(int symbolsMapSize, int eventsBufferPages) {
   std::vector<std::string> cflags;
   cflags.emplace_back(kNumCpusFlag + std::to_string(::sysconf(_SC_NPROCESSORS_ONLN)));
   cflags.emplace_back(kSymbolsHashSizeFlag + std::to_string(symbolsMapSize));
@@ -212,6 +210,7 @@ PyPerfProfiler::PyPerfResult PyPerfProfiler::init(int symbolsMapSize) {
     return PyPerfResult::INIT_FAIL;
   }
 
+  eventsBufferPages_ = eventsBufferPages;
   initCompleted_ = true;
   return PyPerfResult::SUCCESS;
 }
@@ -288,7 +287,7 @@ PyPerfProfiler::PyPerfResult PyPerfProfiler::profile(
 
   // Open perf buffer
   auto openRes = bpf_.open_perf_buffer(kSamplePerfBufName, &handleSampleCallback, &handleLostSamplesCallback,
-                                       this, kPerfBufSizePages);
+                                       this, eventsBufferPages_);
   if (openRes.code() != 0) {
     std::fprintf(stderr, "Unable to open Perf Buffer: %s\n", openRes.msg().c_str());
     return PyPerfResult::PERF_BUF_OPEN_FAIL;
