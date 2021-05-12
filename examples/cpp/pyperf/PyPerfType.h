@@ -205,7 +205,7 @@ typedef struct event {
   char comm[TASK_COMM_LEN];
   uint8_t error_code;
   uint8_t stack_status;
-  int kernel_stack_id;
+  int32_t kernel_stack_id;
   // instead of storing symbol name here directly, we add it to another
   // hashmap with Symbols and only store the ids here
   int32_t stack_len;
