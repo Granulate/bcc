@@ -187,7 +187,7 @@ BPF_PROG_ARRAY(progs, 2);
 BPF_PERCPU_ARRAY(state_heap, struct sample_state, 1);
 BPF_PERF_OUTPUT(events);
 
-BPF_STACK_TRACE(stack_traces, __KERNEL_STACKS_SIZE__);
+BPF_STACK_TRACE(kernel_stacks, __KERNEL_STACKS_SIZE__);
 
 /**
 Get the thread id for a task just as Python would. Currently assumes Python uses pthreads.
@@ -598,7 +598,7 @@ no_code:
   goto submit;
 
 complete:
-  event->kernel_stack_id = stack_traces.get_stackid(ctx, BPF_F_REUSE_STACKID);
+  event->kernel_stack_id = kernel_stacks.get_stackid(ctx, BPF_F_REUSE_STACKID);
   event->error_code = ERROR_NONE;
   event->stack_status = STACK_STATUS_COMPLETE;
 submit:

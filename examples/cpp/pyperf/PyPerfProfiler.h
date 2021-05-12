@@ -71,7 +71,7 @@ class PyPerfProfiler {
                        PyPerfSampleProcessor* processor);
 
   std::unordered_map<int32_t, std::string> getSymbolMapping();
-  BPFStackTable getStackTraces() { return bpf_.get_stack_table("stack_traces"); }
+  BPFStackTable getKernelStackTraces() { return bpf_.get_stack_table("kernel_stacks"); }
 
   uint32_t getTotalSamples() const { return totalSamples_; }
 
