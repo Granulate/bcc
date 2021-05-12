@@ -218,7 +218,7 @@ struct PyPerfSample {
   std::string comm;
   uint8_t errorCode;
   uint8_t stackStatus;
-  int kernelStackId;
+  int32_t kernelStackId;
   std::vector<int32_t> pyStackIds;
 
   explicit PyPerfSample(const Event* raw, int rawSize)
