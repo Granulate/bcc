@@ -208,7 +208,7 @@ typedef struct event {
   int kernel_stack_id;
   // instead of storing symbol name here directly, we add it to another
   // hashmap with Symbols and only store the ids here
-  int64_t stack_len;
+  int32_t stack_len;
   int32_t stack[STACK_MAX_LEN];
 } Event;
 
