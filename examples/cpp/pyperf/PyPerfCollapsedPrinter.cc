@@ -105,6 +105,7 @@ void PyPerfCollapsedPrinter::processSamples(
           auto sym = *it;
           std::fprintf(output_file, ";%s_[k]", sym.c_str());
         }
+      // ignore EFAULT which means there was no kernel stack at that point
       } else if (sample.kernelStackId != -EFAULT) {
         kernelStackErrors++;
       }
