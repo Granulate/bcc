@@ -20,6 +20,7 @@
 #include <vector>
 #include <chrono>
 #include <csignal>
+#include <cstdio>
 
 #include "PyPerfCollapsedPrinter.h"
 #include "PyPerfLoggingHelper.h"
@@ -38,6 +39,11 @@ void on_dump_signal(int sig) {
 int main(int argc, char** argv) {
   // Argument parsing helpers
   int pos = 1;
+
+  if (std::setvbuf(stderr, NULL, _IOLBF, 0) != 0) {
+    std::fprintf(stderr, "setvbuf failed, %d\n", errno);
+    std::exit(1);
+  }
 
   auto parseStrArg = [&](std::vector<std::string> argNames, std::string& target) {
     std::string arg(argv[pos]);
