@@ -156,7 +156,7 @@ struct event {
   int32_t kernel_stack_id;
   // instead of storing symbol name here directly, we add it to another
   // hashmap with Symbols and only store the ids here
-  int32_t stack_len;
+  uint32_t stack_len;
   int32_t stack[STACK_MAX_LEN];
 };
 
@@ -568,7 +568,7 @@ int read_python_stack(struct pt_regs* ctx) {
     // read current PyFrameObject filename/name
     get_symbol_names(&state->offsets, cur_frame, cur_code_ptr, &sym);
     uint32_t symbol_id = get_symbol_id(state, &sym);
-    uint64_t cur_len = event->stack_len;
+    uint32_t cur_len = event->stack_len;
     if (cur_len < STACK_MAX_LEN) {
       event->stack[cur_len] = symbol_id;
       event->stack_len++;
