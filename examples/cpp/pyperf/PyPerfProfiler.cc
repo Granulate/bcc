@@ -226,15 +226,22 @@ bool PyPerfProfiler::populatePidTable() {
   // Populate config for each Python Process
   auto pid_config_map = bpf_.get_hash_table<int, PidData>(kPidCfgTableName);
 
+  logInfo(3, "Pruning dead pids\n");
+  auto pid_config_keys = pid_config_map.get_keys_offline();
+  for (const auto pid : pid_config_keys) {
+    auto pos = std::find(pids.begin(), pids.end(), pid);
+    if (pos == pids.end()) {
+      pid_config_map.remove_value(pid);
+    }
+    else {
+      result = true;
+      pids.erase(pos);
+    }
+  }
+
   logInfo(3, "Populating pid table\n");
   for (const auto pid : pids) {
     PidData pidData;
-
-    auto status = pid_config_map.get_value(pid, pidData);
-    if (status.code() == 0) {
-      result = true;
-      continue;
-    }
 
     if (!tryTargetPid(pid, pidData)) {
       // Not a Python Process
