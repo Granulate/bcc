@@ -291,8 +291,9 @@ on_event(struct pt_regs* ctx) {
 
   // Initialize stack info
   event->kernel_stack_id = kernel_stacks.get_stackid(ctx, BPF_F_REUSE_STACKID);
-  event->stack_status = STACK_STATUS_ERROR;
   event->stack_len = 0;
+  event->stack_status = STACK_STATUS_ERROR;
+  event->error_code = ERROR_NONE;
 
   if (pid_data->interp == 0) {
     // This is the first time we sample this process (or the GIL is still released).
