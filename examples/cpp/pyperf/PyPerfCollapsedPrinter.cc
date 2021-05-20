@@ -18,8 +18,7 @@ namespace ebpf {
 namespace pyperf {
 
 const static std::string kLostSymbol = "[Lost Symbol]";
-const static std::string kIncompleteStack = "[Truncated Stack]";
-const static std::string kErrorStack = "[Stack Error]";
+const static std::string kTruncatedStack = "[Truncated]";
 
 PyPerfCollapsedPrinter::PyPerfCollapsedPrinter(std::string& output) {
   output_ = output;
@@ -78,41 +77,40 @@ void PyPerfCollapsedPrinter::processSamples(
   for (auto& sample : samples) {
     int frames = 0;
     std::fprintf(output_file, "%s-%d/%d", sample.comm.c_str(), sample.pid, sample.tid);
+
+    for (auto it = sample.pyStackIds.crbegin(); it != sample.pyStackIds.crend(); ++it) {
+      const auto stackId = *it;
+      auto symbIt = symbols.find(stackId);
+      if (symbIt != symbols.end()) {
+        std::fprintf(output_file, ";%s", symbIt->second.c_str());
+        frames++;
+      } else {
+        std::fprintf(output_file, ";%s", kLostSymbol.c_str());
+        lostSymbols++;
+      }
+    }
+
     switch (sample.stackStatus) {
     case STACK_STATUS_TRUNCATED:
-      std::fprintf(output_file, ";%s", kIncompleteStack.c_str());
+      std::fprintf(output_file, ";%s", kTruncatedStack.c_str());
       truncatedStack++;
       break;
     case STACK_STATUS_ERROR:
-      std::fprintf(output_file, ";%s", kErrorStack.c_str());
+      std::fprintf(output_file, ";[Error %d]", sample.errorCode);
       errors++;
       break;
-    default:
-      for (auto it = sample.pyStackIds.crbegin(); it != sample.pyStackIds.crend(); ++it) {
-        const auto stackId = *it;
-        auto symbIt = symbols.find(stackId);
-        if (symbIt != symbols.end()) {
-          std::fprintf(output_file, ";%s", symbIt->second.c_str());
-          frames++;
-        } else {
-          std::fprintf(output_file, ";%s", kLostSymbol.c_str());
-          lostSymbols++;
-        }
-      }
-      if (sample.kernelStackId > 0) {
-        auto stacks = kernelStacks.get_stack_symbol(sample.kernelStackId, -1);
-        for (auto it = stacks.crbegin(); it != stacks.crend(); ++it) {
-          auto sym = *it;
-          std::fprintf(output_file, ";%s_[k]", sym.c_str());
-        }
-      // ignore EFAULT which means there was no kernel stack at that point
-      } else if (sample.kernelStackId != -EFAULT) {
-        kernelStackErrors++;
-      }
-      break;
     }
-    if (frames == 0) {
-      std::fprintf(output_file, ";error_code_%d", sample.errorCode);
+
+    if (sample.kernelStackId > 0) {
+      auto symbols = kernelStacks.get_stack_symbol(sample.kernelStackId, -1);
+      for (auto it = symbols.crbegin(); it != symbols.crend(); ++it) {
+        auto sym = *it;
+        std::fprintf(output_file, ";%s_[k]", sym.c_str());
+      }
+    }
+    // ignore EFAULT which means there was no kernel stack at that point
+    else if (sample.kernelStackId != -EFAULT) {
+      kernelStackErrors++;
     }
     std::fprintf(output_file, " %d\n", 1);
   }
