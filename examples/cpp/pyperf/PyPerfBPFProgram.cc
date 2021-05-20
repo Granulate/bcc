@@ -356,6 +356,7 @@ on_event(struct pt_regs* ctx) {
   event->error_code = ERROR_THREAD_STATE_NOT_FOUND;
   state->get_thread_state_call_count = 0;
   progs.call(ctx, GET_THREAD_STATE_PROG_IDX);
+  // <unreachable>
 
 submit:
   events.perf_submit(ctx, &state->event, sizeof(struct event));
