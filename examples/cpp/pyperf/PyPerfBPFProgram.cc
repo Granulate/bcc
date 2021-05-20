@@ -49,6 +49,7 @@ enum error_code {
   ERROR_INVALID_PTHREADS_IMPL = 9,
   ERROR_THREAD_STATE_HEAD_NULL = 10,
   ERROR_BAD_THREAD_STATE = 11,
+  ERROR_CALL_FAILED = 12,
 };
 
 /**
@@ -354,10 +355,9 @@ on_event(struct pt_regs* ctx) {
   }
 
   // Call get_thread_state to find the PyThreadState of this thread:
-  event->error_code = ERROR_THREAD_STATE_NOT_FOUND;
   state->get_thread_state_call_count = 0;
   progs.call(ctx, GET_THREAD_STATE_PROG_IDX);
-  // <unreachable>
+  event->error_code = ERROR_CALL_FAILED;
 
 submit:
   events.perf_submit(ctx, &state->event, sizeof(struct event));
@@ -392,8 +392,7 @@ get_thread_state(struct pt_regs *ctx) {
       &state->thread_state, sizeof(state->thread_state),
       (void *)(state->thread_state + state->offsets.PyThreadState.next));
     if (state->thread_state == 0) {
-      // ERROR_THREAD_STATE_NOT_FOUND is set in on_event before the call
-      goto submit;
+      goto not_found;
     }
   }
 
@@ -401,9 +400,11 @@ get_thread_state(struct pt_regs *ctx) {
     event->error_code = ERROR_TOO_MANY_THREADS;
     goto submit;
   }
-
-  progs.call(ctx, GET_THREAD_STATE_PROG_IDX);
-  // <unreachable>
+  else {
+    progs.call(ctx, GET_THREAD_STATE_PROG_IDX);
+    event->error_code = ERROR_CALL_FAILED;
+    goto submit;
+  }
 
 found:
   // Get pointer to top frame from PyThreadState
@@ -415,19 +416,23 @@ found:
     goto submit;
   }
 
-  // Reset the error code
-  event->error_code = ERROR_NONE;
-
   // We are going to need this later
   state->cur_cpu = bpf_get_smp_processor_id();
 
   // Jump to reading first set of Python frames
   state->python_stack_prog_call_cnt = 0;
   progs.call(ctx, PYTHON_STACK_PROG_IDX);
-  // <unreachable>
+  event->error_code = ERROR_CALL_FAILED;
+  goto submit;
+
+not_found:
+  event->error_code = ERROR_THREAD_STATE_NOT_FOUND;
+  goto submit;
 
 bad_thread_state:
   event->error_code = ERROR_BAD_THREAD_STATE;
+  goto submit;
+
 submit:
   events.perf_submit(ctx, &state->event, sizeof(struct event));
   return 0;
@@ -589,9 +594,10 @@ int read_python_stack(struct pt_regs* ctx) {
   if (state->python_stack_prog_call_cnt < PYTHON_STACK_PROG_CNT) {
     // read next batch of frames
     progs.call(ctx, PYTHON_STACK_PROG_IDX);
-    // <unreachable>
-  }
-  else {
+    event->error_code = ERROR_CALL_FAILED;
+    goto submit;
+  } else {
+    event->error_code = ERROR_NONE;
     event->stack_status = STACK_STATUS_TRUNCATED;
     goto submit;
   }
