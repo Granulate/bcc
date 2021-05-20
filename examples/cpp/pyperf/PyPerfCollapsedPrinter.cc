@@ -78,6 +78,17 @@ void PyPerfCollapsedPrinter::processSamples(
     int frames = 0;
     std::fprintf(output_file, "%s-%d/%d", sample.comm.c_str(), sample.pid, sample.tid);
 
+    switch (sample.stackStatus) {
+    case STACK_STATUS_TRUNCATED:
+      std::fprintf(output_file, ";%s", kTruncatedStack.c_str());
+      truncatedStack++;
+      break;
+    case STACK_STATUS_ERROR:
+      std::fprintf(output_file, ";[Error %d]", sample.errorCode);
+      errors++;
+      break;
+    }
+
     for (auto it = sample.pyStackIds.crbegin(); it != sample.pyStackIds.crend(); ++it) {
       const auto stackId = *it;
       auto symbIt = symbols.find(stackId);
@@ -88,17 +99,6 @@ void PyPerfCollapsedPrinter::processSamples(
         std::fprintf(output_file, ";%s", kLostSymbol.c_str());
         lostSymbols++;
       }
-    }
-
-    switch (sample.stackStatus) {
-    case STACK_STATUS_TRUNCATED:
-      std::fprintf(output_file, ";%s", kTruncatedStack.c_str());
-      truncatedStack++;
-      break;
-    case STACK_STATUS_ERROR:
-      std::fprintf(output_file, ";[Error %d]", sample.errorCode);
-      errors++;
-      break;
     }
 
     if (sample.kernelStackId > 0) {
