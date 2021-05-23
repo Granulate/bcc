@@ -20,6 +20,7 @@
 #include <vector>
 #include <chrono>
 #include <csignal>
+#include <cstdio>
 
 #include "PyPerfCollapsedPrinter.h"
 #include "PyPerfLoggingHelper.h"
@@ -38,6 +39,11 @@ void on_dump_signal(int sig) {
 int main(int argc, char** argv) {
   // Argument parsing helpers
   int pos = 1;
+
+  if (std::setvbuf(stderr, NULL, _IOLBF, 0) != 0) {
+    std::fprintf(stderr, "setvbuf failed, %d\n", errno);
+    std::exit(1);
+  }
 
   auto parseStrArg = [&](std::vector<std::string> argNames, std::string& target) {
     std::string arg(argv[pos]);
@@ -90,6 +96,9 @@ int main(int argc, char** argv) {
   // Default argument values
   std::vector<uint64_t> pids;
   uint64_t updateIntervalSecs = 10;
+  uint64_t symbolsMapSize = 32768;
+  uint64_t eventsBufferPages = 64;
+  uint64_t kernelStacksMapSize = 65536;
   uint64_t sampleRate = 0;
   uint64_t sampleFreq = 0;
   uint64_t duration = 0;
@@ -106,6 +115,9 @@ int main(int argc, char** argv) {
     found = found || parseIntArg({"-F", "--frequency"}, sampleFreq);
     found = found || parseIntArg({"-d", "--duration"}, duration);
     found = found || parseIntArg({"--update-interval"}, updateIntervalSecs);
+    found = found || parseIntArg({"--symbols-map-size"}, symbolsMapSize);
+    found = found || parseIntArg({"--events-buffer-pages"}, eventsBufferPages);
+    found = found || parseIntArg({"--kernel-stacks-map-size"}, kernelStacksMapSize);
     found = found || parseIntArg({"-v", "--verbose"}, verbosityLevel);
     found = found || parseStrArg({"-o", "--output"}, output);
     if (!found) {
@@ -141,7 +153,7 @@ int main(int argc, char** argv) {
     ebpf::pyperf::PyPerfProfiler profiler;
     profiler.update_interval = std::chrono::seconds{updateIntervalSecs};
 
-    auto res = profiler.init();
+    auto res = profiler.init(symbolsMapSize, eventsBufferPages, kernelStacksMapSize);
     if (res != ebpf::pyperf::PyPerfProfiler::PyPerfResult::SUCCESS) {
       std::exit((int)res);
     }

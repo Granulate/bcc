@@ -65,12 +65,13 @@ class PyPerfProfiler {
   };
 
   // init must be invoked exactly once before invoking profile
-  PyPerfResult init();
+  PyPerfResult init(unsigned int symbolsMapSize, unsigned int eventsBufferPages, unsigned int kernelStacksMapSize);
 
   PyPerfResult profile(int64_t sampleRate, int64_t sampleFreq, int64_t duration,
                        PyPerfSampleProcessor* processor);
 
   std::unordered_map<int32_t, std::string> getSymbolMapping();
+  BPFStackTable getKernelStackTraces() { return bpf_.get_stack_table("kernel_stacks"); }
 
   uint32_t getTotalSamples() const { return totalSamples_; }
 
@@ -82,6 +83,7 @@ class PyPerfProfiler {
   std::chrono::seconds update_interval;
 
  private:
+  int eventsBufferPages_;
   uint32_t totalSamples_ = 0, lostSamples_ = 0;
 
   ebpf::BPF bpf_{0, nullptr, false, "", true};

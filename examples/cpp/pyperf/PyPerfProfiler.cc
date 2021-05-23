@@ -40,8 +40,6 @@ using namespace std::chrono_literals;
 
 extern std::string PYPERF_BPF_PROGRAM;
 
-const static int kPerfBufSizePages = 32;
-
 const static std::string kPidCfgTableName("pid_config");
 const static std::string kProgsTableName("progs");
 const static std::string kSamplePerfBufName("events");
@@ -57,7 +55,7 @@ const static int kGetThreadStateProgIdx = 1;
 
 const static std::string kNumCpusFlag("-DNUM_CPUS=");
 const static std::string kSymbolsHashSizeFlag("-D__SYMBOLS_SIZE__=");
-const static int kSymbolsHashSize = 16384;
+const static std::string kKernelStackTracesSizeFlag("-D__KERNEL_STACKS_SIZE__=");
 
 namespace {
 
@@ -163,10 +161,11 @@ void handleLostSamplesCallback(void* cb_cookie, uint64_t lost_cnt) {
   profiler->handleLostSamples(lost_cnt);
 }
 
-PyPerfProfiler::PyPerfResult PyPerfProfiler::init() {
+PyPerfProfiler::PyPerfResult PyPerfProfiler::init(unsigned int symbolsMapSize, unsigned int eventsBufferPages, unsigned int kernelStacksMapSize) {
   std::vector<std::string> cflags;
   cflags.emplace_back(kNumCpusFlag + std::to_string(::sysconf(_SC_NPROCESSORS_ONLN)));
-  cflags.emplace_back(kSymbolsHashSizeFlag + std::to_string(kSymbolsHashSize));
+  cflags.emplace_back(kSymbolsHashSizeFlag + std::to_string(symbolsMapSize));
+  cflags.emplace_back(kKernelStackTracesSizeFlag + std::to_string(kernelStacksMapSize));
   cflags.emplace_back(kPythonStackProgIdxFlag + std::to_string(kPythonStackProgIdx));
   cflags.emplace_back(kGetThreadStateProgIdxFlag + std::to_string(kGetThreadStateProgIdx));
 
@@ -213,6 +212,7 @@ PyPerfProfiler::PyPerfResult PyPerfProfiler::init() {
     return PyPerfResult::INIT_FAIL;
   }
 
+  eventsBufferPages_ = eventsBufferPages;
   initCompleted_ = true;
   return PyPerfResult::SUCCESS;
 }
@@ -226,15 +226,22 @@ bool PyPerfProfiler::populatePidTable() {
   // Populate config for each Python Process
   auto pid_config_map = bpf_.get_hash_table<int, PidData>(kPidCfgTableName);
 
+  logInfo(3, "Pruning dead pids\n");
+  auto pid_config_keys = pid_config_map.get_keys_offline();
+  for (const auto pid : pid_config_keys) {
+    auto pos = std::find(pids.begin(), pids.end(), pid);
+    if (pos == pids.end()) {
+      pid_config_map.remove_value(pid);
+    }
+    else {
+      result = true;
+      pids.erase(pos);
+    }
+  }
+
   logInfo(3, "Populating pid table\n");
   for (const auto pid : pids) {
     PidData pidData;
-
-    auto status = pid_config_map.get_value(pid, pidData);
-    if (status.code() == 0) {
-      result = true;
-      continue;
-    }
 
     if (!tryTargetPid(pid, pidData)) {
       // Not a Python Process
@@ -289,7 +296,7 @@ PyPerfProfiler::PyPerfResult PyPerfProfiler::profile(
 
   // Open perf buffer
   auto openRes = bpf_.open_perf_buffer(kSamplePerfBufName, &handleSampleCallback, &handleLostSamplesCallback,
-                                       this, kPerfBufSizePages);
+                                       this, eventsBufferPages_);
   if (openRes.code() != 0) {
     std::fprintf(stderr, "Unable to open Perf Buffer: %s\n", openRes.msg().c_str());
     return PyPerfResult::PERF_BUF_OPEN_FAIL;
@@ -328,6 +335,7 @@ PyPerfProfiler::PyPerfResult PyPerfProfiler::profile(
       processor->processSamples(samples_, this);
       samples_.clear();
       totalSamples_ = 0;
+      lostSamples_ = 0;
       processor->prepare();
     }
   }
@@ -380,22 +388,19 @@ std::string PyPerfProfiler::getSymbolName(Symbol& sym) const {
 
   std::string module = file;
   /*
-  Derive the module name from the file path. This covers the most common cases: built-ins, installed packages, and zip imports.
-  Alternatively we could traverse the path looking for the package root (highest __init__.py file). Though it still wouldn't cover
-  arbitrary importers.
+  Derive the module name from the file path. This covers the most common cases: built-ins, installed packages, and zip
+  imports. Alternatively we could traverse the path looking for the package root (highest __init__.py file). Though it
+  still wouldn't cover arbitrary importers.
 
   Strip the following in order:
-    1. For zip packages: path to the zip file.
-    2. Installation prefix: /usr, /usr/local, /opt, /opt/python*
-    3. Path to the packages root: /lib/python* for built-in package, followed by site/dist-packages for installed packages.
-    4. Leading slash.
-    5. .py file extension.
+    1. Path to all packages root: <prefix>/lib(32/64)/python* for built-in package, followed by site/dist-packages for
+       installed packages.
+    2. Path to this package root: Leading slash. If it's a zip package, then strip the zip file path.
+    3. .py file extension.
   Then replace all slashes with periods.
   */
-  module = std::regex_replace(module, std::regex{R"(^.*?\.zip/)"}, "");
-  module = std::regex_replace(module, std::regex{R"(^(/usr(/local)?|/opt(/python[23](\.[0-9]+)?)?))"}, "");
-  module = std::regex_replace(module, std::regex{R"(^/lib/python[23](\.[0-9]+)?(/(site|dist)\-packages)?)"}, "");
-  module = std::regex_replace(module, std::regex{R"(^/)"}, "");
+  module = std::regex_replace(module, std::regex{R"(^.*/lib(32|64)?/python[23](\.[0-9]+)?(/(site|dist)\-packages)?)"}, "");
+  module = std::regex_replace(module, std::regex{R"(^(.*?\.zip)?/)"}, "");
   module = std::regex_replace(module, std::regex{R"(\.(py|pyc|pyo)$)"}, "");
   std::replace(module.begin(), module.end(), '/', '.');
   return module + "." + nameStr + " (" + file + ")";

@@ -300,6 +300,22 @@ class BPFHashTable : public BPFTableBase<KeyType, ValueType> {
     return value;
   }
 
+  std::vector<KeyType> get_keys_offline() {
+    std::vector<KeyType> res;
+    KeyType cur;
+
+    if (!this->first(&cur))
+      return res;
+
+    while (true) {
+      res.emplace_back(cur);
+      if (!this->next(&cur, &cur))
+        break;
+    }
+
+    return res;
+  }
+
   std::vector<std::pair<KeyType, ValueType>> get_table_offline() {
     std::vector<std::pair<KeyType, ValueType>> res;
     KeyType cur;

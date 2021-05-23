@@ -60,6 +60,19 @@ ERROR_EMPTY_STACK:
 
 ERROR_FRAME_CODE_IS_NULL:
   The f_code field of a stack frame points to NULL.
+
+ERROR_BAD_FSBASE:
+  Reading data from the thread descriptor (at %fs) faulted. This can happen when a new thread is created but pthreads
+  has not initialized in that thread yet.
+
+ERROR_INVALID_PTHREADS_IMPL:
+  The pthreads implementation set for the process is invalid.
+
+ERROR_THREAD_STATE_HEAD_NULL:
+  Read the pointer to the head of the thread states list from the PyInterpreterState and got NULL.
+
+ERROR_BAD_THREAD_STATE:
+  Reading a field from a thread state in the thread states list failed.
 */
 enum error_code {
   ERROR_NONE = 0,
@@ -70,6 +83,10 @@ enum error_code {
   ERROR_THREAD_STATE_NOT_FOUND = 5,
   ERROR_EMPTY_STACK = 6,
   ERROR_FRAME_CODE_IS_NULL = 7,
+  ERROR_BAD_FSBASE = 8,
+  ERROR_INVALID_PTHREADS_IMPL = 9,
+  ERROR_THREAD_STATE_HEAD_NULL = 10,
+  ERROR_BAD_THREAD_STATE = 11,
 };
 
 /**
@@ -188,9 +205,10 @@ typedef struct event {
   char comm[TASK_COMM_LEN];
   uint8_t error_code;
   uint8_t stack_status;
+  int32_t kernel_stack_id;
   // instead of storing symbol name here directly, we add it to another
   // hashmap with Symbols and only store the ids here
-  int64_t stack_len;
+  int32_t stack_len;
   int32_t stack[STACK_MAX_LEN];
 } Event;
 
@@ -200,6 +218,7 @@ struct PyPerfSample {
   std::string comm;
   uint8_t errorCode;
   uint8_t stackStatus;
+  int32_t kernelStackId;
   std::vector<int32_t> pyStackIds;
 
   explicit PyPerfSample(const Event* raw, int rawSize)
@@ -208,6 +227,7 @@ struct PyPerfSample {
         comm(raw->comm),
         errorCode(raw->error_code),
         stackStatus(raw->stack_status),
+        kernelStackId(raw->kernel_stack_id),
         pyStackIds(raw->stack, raw->stack + raw->stack_len) {}
 };
 

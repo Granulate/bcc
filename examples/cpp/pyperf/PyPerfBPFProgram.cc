@@ -17,6 +17,8 @@ extern const std::string PYPERF_BPF_PROGRAM = R"(
 #include <linux/sched.h>
 #include <uapi/linux/ptrace.h>
 
+#define BAD_THREAD_ID (~0)
+
 // Maximum threads: 32x8 = 256
 #define THREAD_STATES_PER_PROG 32
 #define THREAD_STATES_PROG_CNT 8
@@ -43,6 +45,11 @@ enum error_code {
   ERROR_THREAD_STATE_NOT_FOUND = 5,
   ERROR_EMPTY_STACK = 6,
   ERROR_FRAME_CODE_IS_NULL = 7,
+  ERROR_BAD_FSBASE = 8,
+  ERROR_INVALID_PTHREADS_IMPL = 9,
+  ERROR_THREAD_STATE_HEAD_NULL = 10,
+  ERROR_BAD_THREAD_STATE = 11,
+  ERROR_CALL_FAILED = 12,
 };
 
 /**
@@ -147,9 +154,10 @@ struct event {
   char comm[TASK_COMM_LEN];
   uint8_t error_code;
   uint8_t stack_status;
+  int32_t kernel_stack_id;
   // instead of storing symbol name here directly, we add it to another
   // hashmap with Symbols and only store the ids here
-  uint64_t stack_len;
+  uint32_t stack_len;
   int32_t stack[STACK_MAX_LEN];
 };
 
@@ -180,50 +188,59 @@ BPF_PROG_ARRAY(progs, 2);
 BPF_PERCPU_ARRAY(state_heap, struct sample_state, 1);
 BPF_PERF_OUTPUT(events);
 
+BPF_STACK_TRACE(kernel_stacks, __KERNEL_STACKS_SIZE__);
+
 /**
 Get the thread id for a task just as Python would. Currently assumes Python uses pthreads.
 */
-static __always_inline uint64_t
-get_task_thread_id(struct task_struct const *task, enum pthreads_impl pthreads_impl) {
+static __always_inline int
+get_task_thread_id(struct task_struct const *task, enum pthreads_impl pthreads_impl, uint64_t *thread_id) {
   // The thread id that is written in the PyThreadState is the value of `pthread_self()`.
   // For glibc, corresponds to THREAD_SELF in "tls.h" in glibc source.
   // For musl, see definition of `__pthread_self`.
-  uint64_t pthread_self;
 
 #ifdef __x86_64__
-
-  uint64_t fsbase;
-  // thread_struct->fs was renamed to fsbase in
-  // https://github.com/torvalds/linux/commit/296f781a4b7801ad9c1c0219f9e87b6c25e196fe
-  // so depending on kernel version, we need to account for that
+// thread_struct->fs was renamed to fsbase in
+// https://github.com/torvalds/linux/commit/296f781a4b7801ad9c1c0219f9e87b6c25e196fe
+// so depending on kernel version, we need to account for that
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
-  fsbase = task->thread.fs;
+#define THREAD_FSBASE(task) (task->thread.fs)
 #else
-  fsbase = task->thread.fsbase;
+#define THREAD_FSBASE(task) (task->thread.fsbase)
 #endif
+
+  int ret;
+  uint64_t fsbase;
+  // HACK: Usually BCC would translate a deref of the field into `read_kernel` for us, but it
+  //       doesn't detect it due to the macro (because it transforms before preprocessing).
+  bpf_probe_read_kernel(&fsbase, sizeof(fsbase), &THREAD_FSBASE(task));
 
   switch (pthreads_impl) {
   case PTI_GLIBC:
     // 0x10 = offsetof(tcbhead_t, self)
-    bpf_probe_read_user(&pthread_self, sizeof(pthread_self), (void *)(fsbase + 0x10));
+    ret = bpf_probe_read_user(thread_id, sizeof(*thread_id), (void *)(fsbase + 0x10));
     break;
 
   case PTI_MUSL:
     // __pthread_self / __get_tp reads %fs:0x0
     // which corresponds to the field "self" in struct pthread
-    bpf_probe_read_user(&pthread_self, sizeof(pthread_self), (void *)fsbase);
+    ret = bpf_probe_read_user(thread_id, sizeof(*thread_id), (void *)fsbase);
     break;
 
   default:
     // driver passed bad value
-    return ~0;
+    return ERROR_INVALID_PTHREADS_IMPL;
   }
+
+  if (ret < 0) {
+    return ERROR_BAD_FSBASE;
+  }
+
+  return ERROR_NONE;
 
 #else  // __x86_64__
 #error "Unsupported platform"
 #endif // __x86_64__
-
-  return pthread_self;
 }
 
 // this function is trivial, but we need to do map lookup in separate function,
@@ -247,9 +264,11 @@ Get a PyThreadState's thread id.
 static __always_inline uint64_t
 read_tstate_thread_id(uintptr_t thread_state, struct struct_offsets *offsets) {
     uint64_t thread_id;
-    bpf_probe_read_user(
-        &thread_id, sizeof(thread_id),
-        (void *)(thread_state + offsets->PyThreadState.thread));
+    int ret = bpf_probe_read_user(&thread_id, sizeof(thread_id),
+                                  (void *)(thread_state + offsets->PyThreadState.thread));
+    if (ret < 0) {
+      return BAD_THREAD_ID;
+    }
     return thread_id;
 }
 
@@ -270,6 +289,12 @@ on_event(struct pt_regs* ctx) {
   event->pid = pid;
   event->tid = (pid_t)pid_tgid;
   bpf_get_current_comm(&event->comm, sizeof(event->comm));
+
+  // Initialize stack info
+  event->kernel_stack_id = kernel_stacks.get_stackid(ctx, BPF_F_REUSE_STACKID);
+  event->stack_len = 0;
+  event->stack_status = STACK_STATUS_ERROR;
+  event->error_code = ERROR_NONE;
 
   if (pid_data->interp == 0) {
     // This is the first time we sample this process (or the GIL is still released).
@@ -308,11 +333,12 @@ on_event(struct pt_regs* ctx) {
     }
   }
 
-  event->error_code = ERROR_THREAD_STATE_NOT_FOUND;
-
   // Get current thread id:
   struct task_struct const *const task = (struct task_struct *)bpf_get_current_task();
-  state->current_thread_id = get_task_thread_id(task, pid_data->pthreads_impl);
+  event->error_code = get_task_thread_id(task, pid_data->pthreads_impl, &state->current_thread_id);
+  if (event->error_code != ERROR_NONE) {
+    goto submit;
+  }
 
   // Copy some required info:
   state->offsets = pid_data->offsets;
@@ -324,12 +350,14 @@ on_event(struct pt_regs* ctx) {
     &state->thread_state, sizeof(state->thread_state),
     (void *)(state->interp_head + pid_data->offsets.PyInterpreterState.tstate_head));
   if (state->thread_state == 0) {
+    event->error_code = ERROR_THREAD_STATE_HEAD_NULL;
     goto submit;
   }
 
   // Call get_thread_state to find the PyThreadState of this thread:
   state->get_thread_state_call_count = 0;
   progs.call(ctx, GET_THREAD_STATE_PROG_IDX);
+  event->error_code = ERROR_CALL_FAILED;
 
 submit:
   events.perf_submit(ctx, &state->event, sizeof(struct event));
@@ -356,13 +384,15 @@ get_thread_state(struct pt_regs *ctx) {
     if (thread_id == state->current_thread_id) {
       goto found;
     }
+    else if (unlikely(thread_id == BAD_THREAD_ID)) {
+      goto bad_thread_state;
+    }
     // Read next thread state:
     bpf_probe_read_user(
       &state->thread_state, sizeof(state->thread_state),
       (void *)(state->thread_state + state->offsets.PyThreadState.next));
     if (state->thread_state == 0) {
-      // ERROR_THREAD_STATE_NOT_FOUND is set in on_event before the call
-      goto submit;
+      goto not_found;
     }
   }
 
@@ -370,15 +400,13 @@ get_thread_state(struct pt_regs *ctx) {
     event->error_code = ERROR_TOO_MANY_THREADS;
     goto submit;
   }
-
-  progs.call(ctx, GET_THREAD_STATE_PROG_IDX);
-  // <unreachable>
+  else {
+    progs.call(ctx, GET_THREAD_STATE_PROG_IDX);
+    event->error_code = ERROR_CALL_FAILED;
+    goto submit;
+  }
 
 found:
-  // Initialize stack info in case any subprogram below fails
-  event->stack_status = STACK_STATUS_ERROR;
-  event->stack_len = 0;
-
   // Get pointer to top frame from PyThreadState
   bpf_probe_read_user(
       &state->frame_ptr, sizeof(state->frame_ptr),
@@ -388,13 +416,22 @@ found:
     goto submit;
   }
 
-  // we are gonna need this later:
+  // We are going to need this later
   state->cur_cpu = bpf_get_smp_processor_id();
 
-  // jump to reading first set of Python frames
+  // Jump to reading first set of Python frames
   state->python_stack_prog_call_cnt = 0;
   progs.call(ctx, PYTHON_STACK_PROG_IDX);
-  // <unreachable>
+  event->error_code = ERROR_CALL_FAILED;
+  goto submit;
+
+not_found:
+  event->error_code = ERROR_THREAD_STATE_NOT_FOUND;
+  goto submit;
+
+bad_thread_state:
+  event->error_code = ERROR_BAD_THREAD_STATE;
+  goto submit;
 
 submit:
   events.perf_submit(ctx, &state->event, sizeof(struct event));
@@ -539,7 +576,7 @@ int read_python_stack(struct pt_regs* ctx) {
     // read current PyFrameObject filename/name
     get_symbol_names(&state->offsets, cur_frame, cur_code_ptr, &sym);
     uint32_t symbol_id = get_symbol_id(state, &sym);
-    uint64_t cur_len = event->stack_len;
+    uint32_t cur_len = event->stack_len;
     if (cur_len < STACK_MAX_LEN) {
       event->stack[cur_len] = symbol_id;
       event->stack_len++;
@@ -557,9 +594,10 @@ int read_python_stack(struct pt_regs* ctx) {
   if (state->python_stack_prog_call_cnt < PYTHON_STACK_PROG_CNT) {
     // read next batch of frames
     progs.call(ctx, PYTHON_STACK_PROG_IDX);
-    // <unreachable>
-  }
-  else {
+    event->error_code = ERROR_CALL_FAILED;
+    goto submit;
+  } else {
+    event->error_code = ERROR_NONE;
     event->stack_status = STACK_STATUS_TRUNCATED;
     goto submit;
   }
