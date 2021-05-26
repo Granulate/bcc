@@ -256,7 +256,7 @@ static __always_inline struct sample_state* get_state() {
 }
 
 #define GET_STATE(state) \
-  struct sample_state *state = get_state(); \
+  struct sample_state *const state = get_state(); \
   if (!state) { \
     /* assuming state_heap is at least size 1, this can't happen */ \
     return 0; \
@@ -443,7 +443,7 @@ submit:
 }
 
 static __always_inline void
-clear_symbol(struct sample_state *state, struct symbol *sym) {
+clear_symbol(const struct sample_state *state, struct symbol *sym) {
   // Helper bpf_perf_prog_read_value clears the buffer on error, so we can
   // take advantage of this behavior to clear the memory. It requires the size of
   // the buffer to be different from struct bpf_perf_event_value.
@@ -460,8 +460,8 @@ Reads the name of the first argument of a PyCodeObject.
 */
 static __always_inline int
 get_first_arg_name(
-  void *code_ptr,
-  struct struct_offsets *offsets,
+  const void *code_ptr,
+  const struct struct_offsets *offsets,
   char *argname,
   size_t maxlen) {
   int result = 0;
@@ -482,9 +482,9 @@ For global functions, sets an empty string.
 */
 static __always_inline int
 get_classname(
-  struct struct_offsets *offsets,
-  void *cur_frame,
-  void *code_ptr,
+  const struct struct_offsets *offsets,
+  const void *cur_frame,
+  const void *code_ptr,
   struct symbol *symbol) {
   int result = 0;
   // Figure out if we want to parse class name, basically checking the name of
@@ -520,9 +520,9 @@ get_classname(
 
 static __always_inline int
 read_symbol_names(
-    struct struct_offsets *offsets,
-    void* cur_frame,
-    void* code_ptr,
+    const struct struct_offsets *offsets,
+    const void* cur_frame,
+    const void* code_ptr,
     struct symbol* symbol) {
   int result = 0;
   result |= get_classname(offsets, cur_frame, code_ptr, symbol);
@@ -585,7 +585,7 @@ read_symbol(struct sample_state *state, void *frame, void *code) {
 
 int read_python_stack(struct pt_regs* ctx) {
   GET_STATE(state);
-  struct event *event = &state->event;
+  struct event *const event = &state->event;
   void *cur_frame;
   void *cur_code_ptr;
 
