@@ -68,6 +68,7 @@ void PyPerfCollapsedPrinter::prepare() {
 void PyPerfCollapsedPrinter::processSamples(
     const std::vector<PyPerfSample>& samples, PyPerfProfiler* util) {
   unsigned int errors = 0;
+  unsigned int symbolErrors = 0;
   unsigned int lostSymbols = 0;
   unsigned int truncatedStack = 0;
   unsigned int kernelStackErrors = 0;
@@ -91,13 +92,19 @@ void PyPerfCollapsedPrinter::processSamples(
 
     for (auto it = sample.pyStackIds.crbegin(); it != sample.pyStackIds.crend(); ++it) {
       const auto stackId = *it;
-      auto symbIt = symbols.find(stackId);
-      if (symbIt != symbols.end()) {
-        std::fprintf(output_file, ";%s_[p]", symbIt->second.c_str());
-        frames++;
-      } else {
-        std::fprintf(output_file, ";%s_[pe]", kLostSymbol.c_str());
-        lostSymbols++;
+      if (stackId < 0) {
+        std::fprintf(output_file, ";[Error %d]_[pe]", -stackId);
+        symbolErrors++;
+      }
+      else {
+        auto symbIt = symbols.find(stackId);
+        if (symbIt != symbols.end()) {
+          std::fprintf(output_file, ";%s_[p]", symbIt->second.c_str());
+          frames++;
+        } else {
+          std::fprintf(output_file, ";%s_[pe]", kLostSymbol.c_str());
+          lostSymbols++;
+        }
       }
     }
 
@@ -119,6 +126,7 @@ void PyPerfCollapsedPrinter::processSamples(
   std::fprintf(stderr, "%d samples collected\n", util->getTotalSamples());
   std::fprintf(stderr, "%d samples lost\n", util->getLostSamples());
   std::fprintf(stderr, "%d samples with truncated stack\n", truncatedStack);
+  std::fprintf(stderr, "%d Python symbol errors\n", symbolErrors);
   std::fprintf(stderr, "%d times Python symbol lost\n", lostSymbols);
   std::fprintf(stderr, "%d kernel stack errors\n", kernelStackErrors);
   std::fprintf(stderr, "%d errors\n", errors);

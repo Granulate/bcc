@@ -33,6 +33,9 @@ extern const std::string PYPERF_BPF_PROGRAM = R"(
 #define FILE_NAME_LEN 128
 #define TASK_COMM_LEN 16
 
+// ~2M
+#define MAX_SYMBOLS ((1 << 21) - 1)
+
 /**
 See PyPerfType.h
 */
@@ -167,16 +170,17 @@ struct sample_state {
   uintptr_t interp_head;
   uintptr_t thread_state;
   struct struct_offsets offsets;
-  uint64_t cur_cpu;
+  uint32_t cur_cpu;
+  uint32_t symbol_counter;
   int get_thread_state_call_count;
-  int64_t symbol_counter;
   void* frame_ptr;
   int python_stack_prog_call_cnt;
   struct event event;
 };
 
 // Hashtable of stack frame to unique id. Storing all symbol data all the
-// time would quickly inflate the output buffer. See `get_symbol_id`,
+// time would quickly inflate the output buffer. See `get_symbol_id`.
+// Only positive values are valid. A negative "id" is an error code.
 BPF_HASH(symbols, struct symbol, int32_t, __SYMBOLS_SIZE__);
 
 // Table of processes currently being profiled.
@@ -454,38 +458,41 @@ clear_symbol(struct sample_state *state, struct symbol *sym) {
 /**
 Reads the name of the first argument of a PyCodeObject.
 */
-static __always_inline void
+static __always_inline int
 get_first_arg_name(
   void *code_ptr,
   struct struct_offsets *offsets,
   char *argname,
   size_t maxlen) {
+  int result = 0;
   // Roughly equivalnt to the following in GDB:
   //
   //   ((PyTupleObject*)$frame->f_code->co_varnames)->ob_item[0]
   //
   void* args_ptr;
-  bpf_probe_read_user(&args_ptr, sizeof(void*), code_ptr + offsets->PyCodeObject.co_varnames);
-  bpf_probe_read_user(&args_ptr, sizeof(void*), args_ptr + offsets->PyTupleObject.ob_item);
-  bpf_probe_read_user_str(argname, maxlen, args_ptr + offsets->String.data);
+  result |= bpf_probe_read_user(&args_ptr, sizeof(void*), code_ptr + offsets->PyCodeObject.co_varnames);
+  result |= bpf_probe_read_user(&args_ptr, sizeof(void*), args_ptr + offsets->PyTupleObject.ob_item);
+  result |= bpf_probe_read_user_str(argname, maxlen, args_ptr + offsets->String.data);
+  return result;
 }
 
 /**
 Read the name of the class wherein a code object is defined.
 For global functions, sets an empty string.
 */
-static __always_inline void
+static __always_inline int
 get_classname(
   struct struct_offsets *offsets,
   void *cur_frame,
   void *code_ptr,
   struct symbol *symbol) {
+  int result = 0;
   // Figure out if we want to parse class name, basically checking the name of
   // the first argument. If it's 'self', we get the type and it's name, if it's
   // 'cls', we just get the name. This is not perfect but there is no better way
   // to figure this out from the code object.
   char argname[5]; // sizeof('self') + 1
-  get_first_arg_name(code_ptr, offsets, argname, sizeof(argname));
+  result |= get_first_arg_name(code_ptr, offsets, argname, sizeof(argname));
 
   // compare strings as ints to save instructions
   static char self_str[4] = {'s', 'e', 'l', 'f'};
@@ -497,59 +504,88 @@ get_classname(
   if (first_self || first_cls) {
     void* tmp;
     // read f_localsplus[0]:
-    bpf_probe_read_user(&tmp, sizeof(void*), cur_frame + offsets->PyFrameObject.f_localsplus);
+    result |= bpf_probe_read_user(&tmp, sizeof(void*), cur_frame + offsets->PyFrameObject.f_localsplus);
     if (first_self) {
       // we are working with an instance, first we need to get type
-      bpf_probe_read_user(&tmp, sizeof(void*), tmp + offsets->PyObject.ob_type);
+      result |= bpf_probe_read_user(&tmp, sizeof(void*), tmp + offsets->PyObject.ob_type);
     }
-    bpf_probe_read_user(&tmp, sizeof(void*), tmp + offsets->PyTypeObject.tp_name);
-    bpf_probe_read_user_str(&symbol->classname, sizeof(symbol->classname), tmp);
+    result |= bpf_probe_read_user(&tmp, sizeof(void*), tmp + offsets->PyTypeObject.tp_name);
+    result |= bpf_probe_read_user_str(&symbol->classname, sizeof(symbol->classname), tmp);
   }
   else {
     symbol->classname[0] = '\0';
   }
+  return result;
 }
 
-static __always_inline void
-get_symbol_names(
+static __always_inline int
+read_symbol_names(
     struct struct_offsets *offsets,
     void* cur_frame,
     void* code_ptr,
     struct symbol* symbol) {
-  get_classname(offsets, cur_frame, code_ptr, symbol);
+  int result = 0;
+  result |= get_classname(offsets, cur_frame, code_ptr, symbol);
 
   void* pystr_ptr;
   // read PyCodeObject's filename into symbol
-  bpf_probe_read_user(&pystr_ptr, sizeof(void*), code_ptr + offsets->PyCodeObject.co_filename);
-  bpf_probe_read_user_str(&symbol->file, sizeof(symbol->file), pystr_ptr + offsets->String.data);
+  result |= bpf_probe_read_user(&pystr_ptr, sizeof(void*), code_ptr + offsets->PyCodeObject.co_filename);
+  result |= bpf_probe_read_user_str(&symbol->file, sizeof(symbol->file), pystr_ptr + offsets->String.data);
   // read PyCodeObject's name into symbol
-  bpf_probe_read_user(&pystr_ptr, sizeof(void*), code_ptr + offsets->PyCodeObject.co_name);
-  bpf_probe_read_user_str(&symbol->name, sizeof(symbol->name), pystr_ptr + offsets->String.data);
+  result |= bpf_probe_read_user(&pystr_ptr, sizeof(void*), code_ptr + offsets->PyCodeObject.co_name);
+  result |= bpf_probe_read_user_str(&symbol->name, sizeof(symbol->name), pystr_ptr + offsets->String.data);
+  return result;
 }
 
-static __always_inline int64_t
-get_symbol_id(
-    struct sample_state* state,
-    struct symbol* sym) {
-  int32_t* symbol_id_ptr = symbols.lookup(sym);
+/**
+Gets the key in the symbols map for a symbol.
+If the symbol is not in the map a new key is generated and the symbol is inserted.
+If an error occurs, the negative error code is returned.
+*/
+static __always_inline int32_t
+get_symbol_id(struct sample_state* state, struct symbol* sym) {
+  int32_t *symbol_id_ptr = symbols.lookup(sym);
   if (symbol_id_ptr) {
     return *symbol_id_ptr;
   }
+
+  if (state->symbol_counter == MAX_SYMBOLS) {
+    return -ENOSPC;
+  }
+
+  // symbol_counter is percpu, so we must include the current cpu to avoid duplicate ids
+  // top bit must be zero, so this allows up to 1024 cpus, and up to ~2M unique symbols
+  int32_t id = (state->cur_cpu << 21) | state->symbol_counter;
   // the symbol is new, bump the counter
-  // To avoid duplicate ids, every CPU needs to use different ids when inserting
-  // into the hashmap. NUM_CPUS is defined at PyPerf backend side and passed
-  // through CFlag.
-  int32_t symbol_id = state->symbol_counter * NUM_CPUS + state->cur_cpu;
   state->symbol_counter++;
-  symbols.update(sym, &symbol_id);
-  return symbol_id;
+  int update_result = symbols.update(sym, &id);
+  if (update_result < 0) {
+    return (int32_t)update_result;
+  }
+  else {
+    return id;
+  }
+}
+
+/**
+Reads the symbol for the current frame and returns its id in the symbols map (or a negative error
+code in case of failure).
+*/
+static __always_inline int32_t
+read_symbol(struct sample_state *state, void *frame, void *code) {
+  struct symbol sym;
+  // Leaving the symbol uninitialized won't affect correctness of the result because the read
+  // strings are null-terminated. But it is used as a key into a hashmap so we must have the rest of
+  // it initialized to the same contents across independent readings. Otherwise we will get the same
+  // value duplicated across multiple keys which represent the same symbol.
+  clear_symbol(state, &sym);
+  int read_symbol_result = read_symbol_names(&state->offsets, frame, code, &sym);
+  return (read_symbol_result < 0) ? (int32_t)read_symbol_result : get_symbol_id(state, &sym);
 }
 
 int read_python_stack(struct pt_regs* ctx) {
   GET_STATE(state);
   struct event *event = &state->event;
-  struct symbol sym = {};
-  bool last_res = false;
   void *cur_frame;
   void *cur_code_ptr;
 
@@ -557,12 +593,6 @@ int read_python_stack(struct pt_regs* ctx) {
 
 #pragma unroll
   for (int i = 0; i < PYTHON_STACK_FRAMES_PER_PROG; i++) {
-    // We re-use the same struct symbol instance across loop iterations, which means
-    // we will have left-over data in the struct. Although this won't affect
-    // correctness of the result because we have '\0' at end of the strings read,
-    // it would affect effectiveness of the deduplication.
-    clear_symbol(state, &sym);
-
     cur_frame = state->frame_ptr;
 
     // read PyCodeObject first, if that fails, then no point reading next frame
@@ -574,11 +604,9 @@ int read_python_stack(struct pt_regs* ctx) {
     }
 
     // read current PyFrameObject filename/name
-    get_symbol_names(&state->offsets, cur_frame, cur_code_ptr, &sym);
-    uint32_t symbol_id = get_symbol_id(state, &sym);
     uint32_t cur_len = event->stack_len;
     if (cur_len < STACK_MAX_LEN) {
-      event->stack[cur_len] = symbol_id;
+      event->stack[cur_len] = read_symbol(state, cur_frame, cur_code_ptr);
       event->stack_len++;
     }
 
