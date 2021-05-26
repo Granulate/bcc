@@ -591,6 +591,12 @@ int read_python_stack(struct pt_regs* ctx) {
 
   state->python_stack_prog_call_cnt++;
 
+  // The following case should be unreachable. The test serves as a mandatory hint to the verifier
+  // regarding the range of `stack_len` when it's used as an array index in the loop below.
+  if (event->stack_len > STACK_MAX_LEN - PYTHON_STACK_FRAMES_PER_PROG) {
+    event->error_code = ERROR_CALL_FAILED;
+    goto submit;
+  }
 #pragma unroll
   for (int i = 0; i < PYTHON_STACK_FRAMES_PER_PROG; i++) {
     cur_frame = state->frame_ptr;
@@ -604,11 +610,7 @@ int read_python_stack(struct pt_regs* ctx) {
     }
 
     // read current PyFrameObject filename/name
-    uint32_t cur_len = event->stack_len;
-    if (cur_len < STACK_MAX_LEN) {
-      event->stack[cur_len] = read_symbol(state, cur_frame, cur_code_ptr);
-      event->stack_len++;
-    }
+    event->stack[event->stack_len++] = read_symbol(state, cur_frame, cur_code_ptr);
 
     // read next PyFrameObject pointer, update in place
     bpf_probe_read_user(
