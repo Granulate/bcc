@@ -592,6 +592,8 @@ int read_python_stack(struct pt_regs* ctx) {
   void *cur_frame;
   void *cur_code_ptr;
 
+  // The following case should be unreachable. The test serves as a mandatory hint to the verifier
+  // regarding the range of `stack_len` when it's used as an offset below.
   if (event->stack_len > STACK_MAX_LEN - PYTHON_STACK_FRAMES_PER_PROG) {
     event->error_code = ERROR_CALL_FAILED;
     goto submit;
