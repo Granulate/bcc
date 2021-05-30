@@ -33,9 +33,6 @@ extern const std::string PYPERF_BPF_PROGRAM = R"(
 #define FILE_NAME_LEN 128
 #define TASK_COMM_LEN 16
 
-// ~2M
-#define MAX_SYMBOLS ((1 << 21) - 1)
-
 /**
 See PyPerfType.h
 */
@@ -149,7 +146,9 @@ struct symbol {
 };
 
 /**
-Represents final event data passed to user-mode driver.
+Represents final event data passed to user-mode driver. Storing all symbol data in each sample would
+quickly inflate the output buffer. Instead we store 32-bit ids in the stack array which map to the
+symbols via the `symbols` hashmap. Only positive ids are valid. A negative "id" represents an error.
 */
 struct event {
   uint32_t pid;
@@ -178,9 +177,18 @@ struct sample_state {
   struct event event;
 };
 
-// Hashtable of stack frame to unique id. Storing all symbol data all the
-// time would quickly inflate the output buffer. See `get_symbol_id`.
-// Only positive values are valid. A negative "id" is an error code.
+// Hashtable of symbol to unique id.
+// An id looks like this: |sign||cpu||counter|
+// Where:
+//  - sign (1 bit): 0 means a valid id. 1 means a negative error value.
+//  - cpu (10 bits): the cpu on which this symbol was first encountered.
+//  - counter (21 bits): per-cpu symbol sequential counter.
+// Thus, the maximum amount of CPUs supported is 2^10 (=1024) and the maximum amount of symbols is
+// 2^21 (~2M).
+// See `get_symbol_id`.
+#define CPU_BITS 10
+#define COUNTER_BITS (31 - CPU_BITS)
+#define MAX_SYMBOLS (1 << COUNTER_BITS)
 BPF_HASH(symbols, struct symbol, int32_t, __SYMBOLS_SIZE__);
 
 // Table of processes currently being profiled.
@@ -555,7 +563,7 @@ get_symbol_id(struct sample_state* state, struct symbol* sym) {
 
   // symbol_counter is percpu, so we must include the current cpu to avoid duplicate ids
   // top bit must be zero, so this allows up to 1024 cpus, and up to ~2M unique symbols
-  int32_t id = (state->cur_cpu << 21) | state->symbol_counter;
+  int32_t id = (state->cur_cpu << COUNTER_BITS) | state->symbol_counter;
   // the symbol is new, bump the counter
   state->symbol_counter++;
   int update_result = symbols.update(sym, &id);
