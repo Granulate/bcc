@@ -70,6 +70,9 @@ ERROR_THREAD_STATE_HEAD_NULL:
 
 ERROR_BAD_THREAD_STATE:
   Reading a field from a thread state in the thread states list failed.
+
+ERROR_CALL_FAILED:
+  A tail call to a BPF program failed.
 */
 enum error_code {
   ERROR_NONE = 0,
