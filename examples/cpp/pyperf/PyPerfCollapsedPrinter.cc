@@ -93,8 +93,13 @@ void PyPerfCollapsedPrinter::processSamples(
     for (auto it = sample.pyStackIds.crbegin(); it != sample.pyStackIds.crend(); ++it) {
       const auto stackId = *it;
       if (stackId < 0) {
-        std::fprintf(output_file, ";[Error %d]_[pe]", -stackId);
-        symbolErrors++;
+        if (stackId == FRAME_CODE_IS_NULL) {
+          std::fprintf(output_file, ";(missing)_[pe]");
+        }
+        else {
+          std::fprintf(output_file, ";[Error %d]_[pe]", -stackId);
+          symbolErrors++;
+        }
       }
       else {
         auto symbIt = symbols.find(stackId);

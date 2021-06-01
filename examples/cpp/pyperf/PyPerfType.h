@@ -58,9 +58,6 @@ ERROR_EMPTY_STACK:
   The frame pointer in the current PyThreadState is NULL, meaning the Python stack for this Python
   thread is empty.
 
-ERROR_FRAME_CODE_IS_NULL:
-  The f_code field of a stack frame points to NULL.
-
 ERROR_BAD_FSBASE:
   Reading data from the thread descriptor (at %fs) faulted. This can happen when a new thread is created but pthreads
   has not initialized in that thread yet.
@@ -82,11 +79,12 @@ enum error_code {
   ERROR_TOO_MANY_THREADS = 4,
   ERROR_THREAD_STATE_NOT_FOUND = 5,
   ERROR_EMPTY_STACK = 6,
-  ERROR_FRAME_CODE_IS_NULL = 7,
+  // ERROR_FRAME_CODE_IS_NULL = 7,
   ERROR_BAD_FSBASE = 8,
   ERROR_INVALID_PTHREADS_IMPL = 9,
   ERROR_THREAD_STATE_HEAD_NULL = 10,
   ERROR_BAD_THREAD_STATE = 11,
+  ERROR_CALL_FAILED = 12,
 };
 
 /**
@@ -210,6 +208,7 @@ typedef struct event {
   // hashmap with Symbols and only store the ids here
   int32_t stack_len;
   int32_t stack[STACK_MAX_LEN];
+#define FRAME_CODE_IS_NULL 0x80000001
 } Event;
 
 struct PyPerfSample {

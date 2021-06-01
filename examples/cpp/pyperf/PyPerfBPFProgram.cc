@@ -44,7 +44,7 @@ enum error_code {
   ERROR_TOO_MANY_THREADS = 4,
   ERROR_THREAD_STATE_NOT_FOUND = 5,
   ERROR_EMPTY_STACK = 6,
-  ERROR_FRAME_CODE_IS_NULL = 7,
+  // ERROR_FRAME_CODE_IS_NULL = 7,
   ERROR_BAD_FSBASE = 8,
   ERROR_INVALID_PTHREADS_IMPL = 9,
   ERROR_THREAD_STATE_HEAD_NULL = 10,
@@ -161,6 +161,7 @@ struct event {
   // hashmap with Symbols and only store the ids here
   uint32_t stack_len;
   int32_t stack[STACK_MAX_LEN];
+#define FRAME_CODE_IS_NULL 0x80000001
 };
 
 struct sample_state {
@@ -576,6 +577,10 @@ code in case of failure).
 */
 static __always_inline int32_t
 read_symbol(struct sample_state *state, void *frame, void *code) {
+  if (code == NULL) {
+    return FRAME_CODE_IS_NULL;
+  }
+
   struct symbol sym;
   // Leaving the symbol uninitialized won't affect correctness of the result because the read
   // strings are null-terminated. But it is used as a key into a hashmap so we must have the rest of
@@ -608,9 +613,6 @@ int read_python_stack(struct pt_regs* ctx) {
     bpf_probe_read_user(
         &cur_code_ptr, sizeof(cur_code_ptr),
         cur_frame + state->offsets.PyFrameObject.f_code);
-    if (!cur_code_ptr) {
-      goto no_code;
-    }
 
     // read current PyFrameObject filename/name
     // The compiler substitutes a constant for `i` because the loop is unrolled. This guarantees we
@@ -639,10 +641,6 @@ int read_python_stack(struct pt_regs* ctx) {
     event->stack_status = STACK_STATUS_TRUNCATED;
     goto submit;
   }
-
-no_code:
-  event->error_code = ERROR_FRAME_CODE_IS_NULL;
-  goto submit;
 
 complete:
   event->error_code = ERROR_NONE;
