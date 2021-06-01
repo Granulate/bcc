@@ -17,6 +17,8 @@ extern const std::string PYPERF_BPF_PROGRAM = R"(
 #include <linux/sched.h>
 #include <uapi/linux/ptrace.h>
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 #define BAD_THREAD_ID (~0)
 
 // Maximum threads: 32x8 = 256
@@ -509,7 +511,7 @@ get_classname(
   // the first argument. If it's 'self', we get the type and it's name, if it's
   // 'cls', we just get the name. This is not perfect but there is no better way
   // to figure this out from the code object.
-  char argname[max_t(size_t, sizeof("self"), sizeof("cls"))];
+  char argname[MAX(sizeof("self"), sizeof("cls"))];
   result |= get_first_arg_name(code_ptr, offsets, argname, sizeof(argname));
 
   // compare strings as ints to save instructions
