@@ -509,7 +509,7 @@ get_classname(
   // the first argument. If it's 'self', we get the type and it's name, if it's
   // 'cls', we just get the name. This is not perfect but there is no better way
   // to figure this out from the code object.
-  char argname[max_t(size_t, sizeof("self"), sizeof("cls"))] = {};
+  char argname[max_t(size_t, sizeof("self"), sizeof("cls"))];
   result |= get_first_arg_name(code_ptr, offsets, argname, sizeof(argname));
 
   // compare strings as ints to save instructions
