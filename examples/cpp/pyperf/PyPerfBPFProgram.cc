@@ -25,9 +25,9 @@ extern const std::string PYPERF_BPF_PROGRAM = R"(
 #define THREAD_STATES_PER_PROG 32
 #define THREAD_STATES_PROG_CNT 8
 
-// Maximum Python stack frames: 20x4 = 80
-#define PYTHON_STACK_FRAMES_PER_PROG 20
-#define PYTHON_STACK_PROG_CNT 4
+// Maximum Python stack frames: 16x5 = 80
+#define PYTHON_STACK_FRAMES_PER_PROG 16
+#define PYTHON_STACK_PROG_CNT 5
 #define STACK_MAX_LEN (PYTHON_STACK_FRAMES_PER_PROG * PYTHON_STACK_PROG_CNT)
 
 #define CLASS_NAME_LEN 32
