@@ -602,14 +602,6 @@ int read_python_stack(struct pt_regs* ctx) {
   void *cur_frame;
   void *cur_code_ptr;
 
-  // The following case should be unreachable. The test serves as a mandatory hint to the verifier
-  // regarding the range of `stack_len` when it's used as an offset below.
-  if (event->stack_len > STACK_MAX_LEN - PYTHON_STACK_FRAMES_PER_PROG) {
-    event->error_code = ERROR_CALL_FAILED;
-    goto submit;
-  }
-
-  int32_t *prog_stack = event->stack + event->stack_len;
 #pragma unroll
   for (int i = 0; i < PYTHON_STACK_FRAMES_PER_PROG; i++) {
     cur_frame = state->frame_ptr;
@@ -626,8 +618,11 @@ int read_python_stack(struct pt_regs* ctx) {
     // The compiler substitutes a constant for `i` because the loop is unrolled. This guarantees we
     // are always within the array bounds. On the other hand, `stack_len` is a variable, so the
     // verifier can't guarantee it's within bounds without an explicit check.
-    prog_stack[i] = read_symbol(state, cur_frame, cur_code_ptr);
-    event->stack_len++;
+    const int32_t symbol_id = read_symbol(state, cur_frame, cur_code_ptr);
+    // to please the verifier...
+    if (event->stack_len < STACK_MAX_LEN) {
+      event->stack[event->stack_len++] = symbol_id;
+    }
 
     // read next PyFrameObject pointer, update in place
     bpf_probe_read_user(
