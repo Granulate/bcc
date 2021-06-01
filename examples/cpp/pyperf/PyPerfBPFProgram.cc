@@ -473,14 +473,24 @@ get_first_arg_name(
   char *argname,
   size_t maxlen) {
   int result = 0;
+  ssize_t ob_size; // Py_ssize_t;
   // Roughly equivalnt to the following in GDB:
   //
   //   ((PyTupleObject*)$frame->f_code->co_varnames)->ob_item[0]
   //
   void* args_ptr;
   result |= bpf_probe_read_user(&args_ptr, sizeof(void*), code_ptr + offsets->PyCodeObject.co_varnames);
-  result |= bpf_probe_read_user(&args_ptr, sizeof(void*), args_ptr + offsets->PyTupleObject.ob_item);
-  result |= bpf_probe_read_user_str(argname, maxlen, args_ptr + offsets->String.data);
+  result |= bpf_probe_read_user(&ob_size, sizeof(ob_size), args_ptr + offsets->String.size); // String.size is PyVarObject.ob_size
+  if (ob_size > 0) {
+    result |= bpf_probe_read_user(&args_ptr, sizeof(void*), args_ptr + offsets->PyTupleObject.ob_item);
+    result |= bpf_probe_read_user_str(argname, maxlen, args_ptr + offsets->String.data);
+  } else {
+    // if we're not reading into it - clean it up to please the verifier.
+    #pragma unroll
+    for (size_t i = 0; i < maxlen; i++) {
+      argname[i] = '\0';
+    }
+  }
   return result;
 }
 
