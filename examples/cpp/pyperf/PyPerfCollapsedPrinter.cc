@@ -85,7 +85,7 @@ void PyPerfCollapsedPrinter::processSamples(
       truncatedStack++;
       break;
     case STACK_STATUS_ERROR:
-      std::fprintf(output_file, ";[Error (sample error) %d]_[pe]", sample.errorCode);
+      std::fprintf(output_file, ";[Sample Error %d]_[pe]", sample.errorCode);
       errors++;
       break;
     }
