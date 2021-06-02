@@ -85,7 +85,7 @@ void PyPerfCollapsedPrinter::processSamples(
       truncatedStack++;
       break;
     case STACK_STATUS_ERROR:
-      std::fprintf(output_file, ";[Error %d]_[pe]", sample.errorCode);
+      std::fprintf(output_file, ";[Error (sample error) %d]_[pe]", sample.errorCode);
       errors++;
       break;
     }
@@ -97,7 +97,7 @@ void PyPerfCollapsedPrinter::processSamples(
           std::fprintf(output_file, ";(missing)_[pe]");
         }
         else {
-          std::fprintf(output_file, ";[Error %d]_[pe]", -stackId);
+          std::fprintf(output_file, ";[Error (errno) %d]_[pe]", -stackId);
           symbolErrors++;
         }
       }
