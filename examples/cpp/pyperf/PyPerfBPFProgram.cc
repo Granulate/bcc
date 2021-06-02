@@ -483,7 +483,7 @@ get_first_arg_name(
   void* args_ptr;
   result |= bpf_probe_read_user(&args_ptr, sizeof(void*), code_ptr + offsets->PyCodeObject.co_varnames);
   result |= bpf_probe_read_user(&ob_size, sizeof(ob_size), args_ptr + offsets->String.size); // String.size is PyVarObject.ob_size
-  if (ob_size > 0) {
+  if (result == 0 && ob_size > 0) {
     result |= bpf_probe_read_user(&args_ptr, sizeof(void*), args_ptr + offsets->PyTupleObject.ob_item);
     result |= bpf_probe_read_user_str(argname, maxlen, args_ptr + offsets->String.data);
   } else {
