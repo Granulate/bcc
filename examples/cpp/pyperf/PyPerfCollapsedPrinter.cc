@@ -141,6 +141,9 @@ void PyPerfCollapsedPrinter::processSamples(
     if (rename(output_.c_str(), final_path) == -1) {
       std::fprintf(stderr, "rename(\"%s\", \"%s\"): %s\n", output_.c_str(), final_path, strerror(errno));
     }
+    else {
+      std::fprintf(stderr, "Wrote %s\n", final_path);
+    }
   }
 }
 
