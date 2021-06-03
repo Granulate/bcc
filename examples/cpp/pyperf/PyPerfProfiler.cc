@@ -376,6 +376,10 @@ std::unordered_map<int32_t, std::string> PyPerfProfiler::getSymbolMapping() {
 
 std::string PyPerfProfiler::getSymbolName(Symbol& sym) const {
   std::string nameStr = std::string(sym.name).substr(0, FUNCTION_NAME_LEN);
+  if (sym.lineno != 0) {
+    nameStr = nameStr + ":" + std::to_string(sym.lineno);
+  }
+
   std::string classStr = std::string(sym.classname).substr(0, CLASS_NAME_LEN);
   if (classStr.size() > 0) {
     nameStr = classStr + "." + nameStr;

@@ -140,6 +140,7 @@ spread across a variety of files and classes. Using a separate map for `name` wo
 overhead because symbol names are mostly unique.
 */
 struct symbol {
+  uint32_t lineno;
   char classname[CLASS_NAME_LEN];
   char name[FUNCTION_NAME_LEN];
   char file[FILE_NAME_LEN];
@@ -547,6 +548,8 @@ read_symbol_names(
     const void* code_ptr,
     struct symbol* symbol) {
   int result = 0;
+  result |= bpf_probe_read_user(&symbol->lineno, sizeof(symbol->lineno),
+                                code_ptr + offsets->PyCodeObject.co_firstlineno);
   result |= get_classname(offsets, cur_frame, code_ptr, symbol);
 
   void* pystr_ptr;

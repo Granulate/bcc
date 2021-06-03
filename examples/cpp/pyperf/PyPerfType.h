@@ -196,6 +196,7 @@ typedef struct pid_data {
 See BPF source.
 */
 typedef struct symbol {
+  uint32_t lineno;
   char classname[CLASS_NAME_LEN];
   char name[FUNCTION_NAME_LEN];
   char file[FILE_NAME_LEN];
