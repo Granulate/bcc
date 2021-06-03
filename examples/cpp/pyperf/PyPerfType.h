@@ -151,6 +151,7 @@ struct struct_offsets {
     int64_t co_filename;
     int64_t co_name;
     int64_t co_varnames;
+    int64_t co_firstlineno;
   } PyCodeObject;
   struct {
     int64_t ob_item;

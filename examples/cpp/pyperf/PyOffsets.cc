@@ -61,7 +61,8 @@ extern const struct struct_offsets kPy27OffsetConfig = {
     .PyCodeObject = {
         .co_filename = 80,
         .co_name = 88,
-        .co_varnames = 56
+        .co_varnames = 56,
+        .co_firstlineno = 96,
     },
     .PyTupleObject = {
         .ob_item = 24
@@ -101,6 +102,7 @@ extern const struct struct_offsets kPy36OffsetConfig = {
         .co_filename = 96,
         .co_name = 104,
         .co_varnames = 64,
+        .co_firstlineno = 36,
     },
     .PyTupleObject = {
         .ob_item = 24,
@@ -140,6 +142,7 @@ extern const struct struct_offsets kPy37OffsetConfig = {
         .co_filename = 96,
         .co_name = 104,
         .co_varnames = 64,
+        .co_firstlineno = 36,
     },
     .PyTupleObject = {
         .ob_item = 24,
@@ -179,6 +182,7 @@ extern const struct struct_offsets kPy38OffsetConfig = {
         .co_filename = 104,
         .co_name = 112,
         .co_varnames = 72,
+        .co_firstlineno = 40,
     },
     .PyTupleObject = {
         .ob_item = 24,
