@@ -97,7 +97,7 @@ void PyPerfCollapsedPrinter::processSamples(
           std::fprintf(output_file, ";(missing)_[pe]");
         }
         else {
-          std::fprintf(output_file, ";[Error (errno) %d]_[pe]", -stackId);
+          std::fprintf(output_file, ";[Error (errnos) %d]_[pe]", -stackId);
           symbolErrors++;
         }
       }
