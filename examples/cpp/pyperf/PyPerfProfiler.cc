@@ -376,9 +376,6 @@ std::unordered_map<int32_t, std::string> PyPerfProfiler::getSymbolMapping() {
 
 std::string PyPerfProfiler::getSymbolName(Symbol& sym) const {
   std::string nameStr = std::string(sym.name).substr(0, FUNCTION_NAME_LEN);
-  if (sym.lineno != 0) {
-    nameStr = nameStr + ":" + std::to_string(sym.lineno);
-  }
 
   std::string classStr = std::string(sym.classname).substr(0, CLASS_NAME_LEN);
   if (classStr.size() > 0) {
@@ -407,6 +404,11 @@ std::string PyPerfProfiler::getSymbolName(Symbol& sym) const {
   module = std::regex_replace(module, std::regex{R"(^(.*?\.zip)?/)"}, "");
   module = std::regex_replace(module, std::regex{R"(\.(py|pyc|pyo)$)"}, "");
   std::replace(module.begin(), module.end(), '/', '.');
+
+  if (sym.lineno != 0) {
+    file = file + ":" + std::to_string(sym.lineno);
+  }
+
   return module + "." + nameStr + " (" + file + ")";
 }
 
