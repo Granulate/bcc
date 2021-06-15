@@ -538,7 +538,7 @@ get_classname(
   // read f_localsplus[0]:
   result |= bpf_probe_read_user(&tmp, sizeof(void*), cur_frame + offsets->PyFrameObject.f_localsplus);
   if (tmp == NULL) {
-    // self/cls is a cellvar. tough luck :/
+    // self/cls is a cellvar, deleted, or not an argument. tough luck :/
     return result;
   }
 
