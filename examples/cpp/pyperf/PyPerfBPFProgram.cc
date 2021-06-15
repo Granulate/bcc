@@ -492,6 +492,10 @@ get_first_arg_name(
   if (result == 0 && ob_size > 0) {
     result |= bpf_probe_read_user(&args_ptr, sizeof(void*), args_ptr + offsets->PyTupleObject.ob_item);
     result |= bpf_probe_read_user_str(argname, maxlen, args_ptr + offsets->String.data);
+    if (result < 0) {
+      return result;
+    }
+    result = 0;
   } else {
     // if we're not reading into it - clean it up to please the verifier.
     #pragma unroll
