@@ -466,6 +466,9 @@ clear_symbol(const struct sample_state *state, struct symbol *sym) {
   // That API was introduced in kernel ver. 4.15+, so the alternative is to
   // copy a constant buffer from somewhere.
   bpf_probe_read_user(sym, sizeof(*sym), (void *)state->constant_buffer_addr);
+
+  // classname is not always read, so it must be cleared explicitly
+  sym->classname[0] = '\0';
 }
 
 /**
@@ -522,22 +525,25 @@ get_classname(
   static char cls_str[4] = {'c', 'l', 's', '\0'};
   bool first_self = *(int32_t*)argname == *(int32_t*)self_str && argname[4] == '\0';
   bool first_cls = *(int32_t*)argname == *(int32_t*)cls_str;
+  if (!first_self && !first_cls) {
+    return result;
+  }
 
   // Read class name from $frame->f_localsplus[0]->ob_type->tp_name.
-  if (first_self || first_cls) {
-    void* tmp;
-    // read f_localsplus[0]:
-    result |= bpf_probe_read_user(&tmp, sizeof(void*), cur_frame + offsets->PyFrameObject.f_localsplus);
-    if (first_self) {
-      // we are working with an instance, first we need to get type
-      result |= bpf_probe_read_user(&tmp, sizeof(void*), tmp + offsets->PyObject.ob_type);
-    }
-    result |= bpf_probe_read_user(&tmp, sizeof(void*), tmp + offsets->PyTypeObject.tp_name);
-    result |= bpf_probe_read_user_str(&symbol->classname, sizeof(symbol->classname), tmp);
+  void* tmp;
+  // read f_localsplus[0]:
+  result |= bpf_probe_read_user(&tmp, sizeof(void*), cur_frame + offsets->PyFrameObject.f_localsplus);
+  if (tmp == NULL) {
+    // self/cls is a cellvar. tough luck :/
+    return result;
   }
-  else {
-    symbol->classname[0] = '\0';
+
+  if (first_self) {
+    // we are working with an instance, first we need to get type
+    result |= bpf_probe_read_user(&tmp, sizeof(void*), tmp + offsets->PyObject.ob_type);
   }
+  result |= bpf_probe_read_user(&tmp, sizeof(void*), tmp + offsets->PyTypeObject.tp_name);
+  result |= bpf_probe_read_user_str(&symbol->classname, sizeof(symbol->classname), tmp);
   return result;
 }
 
