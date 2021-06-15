@@ -548,7 +548,7 @@ get_classname(
   }
   result |= bpf_probe_read_user(&tmp, sizeof(void*), tmp + offsets->PyTypeObject.tp_name);
   result |= bpf_probe_read_user_str(&symbol->classname, sizeof(symbol->classname), tmp);
-  return result;
+  return (result < 0) ? result : 0;
 }
 
 static __always_inline int
@@ -566,10 +566,14 @@ read_symbol_names(
   // read PyCodeObject's filename into symbol
   result |= bpf_probe_read_user(&pystr_ptr, sizeof(void*), code_ptr + offsets->PyCodeObject.co_filename);
   result |= bpf_probe_read_user_str(&symbol->file, sizeof(symbol->file), pystr_ptr + offsets->String.data);
+  if (result < 0) {
+    return result;
+  }
+  result = 0;
   // read PyCodeObject's name into symbol
   result |= bpf_probe_read_user(&pystr_ptr, sizeof(void*), code_ptr + offsets->PyCodeObject.co_name);
   result |= bpf_probe_read_user_str(&symbol->name, sizeof(symbol->name), pystr_ptr + offsets->String.data);
-  return result;
+  return (result < 0) ? result : 0;
 }
 
 /**
