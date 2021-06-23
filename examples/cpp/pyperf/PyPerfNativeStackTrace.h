@@ -1,0 +1,40 @@
+/*
+ * Copyright (c) Granulate. All rights reserved.
+ * Licensed under the AGPL3 License. See LICENSE.txt for license information.
+ */
+#pragma once
+
+#include <libunwind-ptrace.h>
+
+#include <string>
+#include <vector>
+
+namespace ebpf {
+namespace pyperf {
+
+struct NativeStackTrace {
+ public:
+  explicit NativeStackTrace(uint32_t pid, const uint8_t *raw_stack,
+                            size_t stack_len, uint64_t ip, uint64_t sp);
+
+  std::vector<std::string> get_stack_symbol() const;
+  unsigned int get_errors_count() const;
+
+ private:
+  std::vector<std::string> symbols;
+  unsigned int errors;
+
+  static const uint8_t *stack;
+  static size_t stack_len;
+  static uint64_t ip;
+  static uint64_t sp;
+
+  static int access_reg(unw_addr_space_t as, unw_regnum_t regnum,
+                        unw_word_t *valp, int write, void *arg);
+
+  static int access_mem(unw_addr_space_t as, unw_word_t addr, unw_word_t *valp,
+                        int write, void *arg);
+};
+
+}  // namespace pyperf
+}  // namespace ebpf

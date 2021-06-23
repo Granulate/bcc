@@ -165,6 +165,10 @@ struct event {
   // hashmap with Symbols and only store the ids here
   uint32_t stack_len;
   int32_t stack[STACK_MAX_LEN];
+  uint64_t user_ip;
+  uint64_t user_sp;
+  uint32_t user_stack_len;
+  uint8_t raw_user_stack[__USER_STACKS_PAGES__ * PAGE_SIZE];
 #define FRAME_CODE_IS_NULL 0x80000001
 };
 
@@ -313,6 +317,32 @@ on_event(struct pt_regs* ctx) {
   event->stack_status = STACK_STATUS_ERROR;
   event->error_code = ERROR_NONE;
 
+  struct task_struct const *const task = (struct task_struct *)bpf_get_current_task();
+
+  // Get raw native user stack
+  struct pt_regs user_regs = *ctx;
+  if (!user_mode(&user_regs)) {
+    // The third argument is equivalent to `task_pt_regs(task)`
+    bpf_probe_read_kernel(
+        &user_regs, sizeof(user_regs),
+        (struct pt_regs *)((unsigned long)(task->stack) + THREAD_SIZE -
+                           TOP_OF_KERNEL_STACK_PADDING) - 1);
+  }
+
+  event->user_sp = user_regs.sp;
+  event->user_ip = user_regs.ip;
+
+  // Copy one page at the time - if one fails we don't want to lose the others
+  int i;
+  for (i = 0; i < __USER_STACKS_PAGES__; ++i) {
+    if (bpf_probe_read_user(
+            event->raw_user_stack + i * PAGE_SIZE, PAGE_SIZE,
+            (void *)((user_regs.sp & PAGE_MASK) + (i * PAGE_SIZE))) < 0) {
+        break;
+      }
+  }
+  event->user_stack_len = i * PAGE_SIZE;
+
   if (pid_data->interp == 0) {
     // This is the first time we sample this process (or the GIL is still released).
     // Let's find PyInterpreterState:
@@ -351,7 +381,6 @@ on_event(struct pt_regs* ctx) {
   }
 
   // Get current thread id:
-  struct task_struct const *const task = (struct task_struct *)bpf_get_current_task();
   event->error_code = get_task_thread_id(task, pid_data->pthreads_impl, &state->current_thread_id);
   if (event->error_code != ERROR_NONE) {
     goto submit;

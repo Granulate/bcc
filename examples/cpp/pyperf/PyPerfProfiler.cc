@@ -56,6 +56,7 @@ const static int kGetThreadStateProgIdx = 1;
 const static std::string kNumCpusFlag("-DNUM_CPUS=");
 const static std::string kSymbolsHashSizeFlag("-D__SYMBOLS_SIZE__=");
 const static std::string kKernelStackTracesSizeFlag("-D__KERNEL_STACKS_SIZE__=");
+const static std::string kUserStacksPagesFlag("-D__USER_STACKS_PAGES__=");
 
 namespace {
 
@@ -161,11 +162,13 @@ void handleLostSamplesCallback(void* cb_cookie, uint64_t lost_cnt) {
   profiler->handleLostSamples(lost_cnt);
 }
 
-PyPerfProfiler::PyPerfResult PyPerfProfiler::init(unsigned int symbolsMapSize, unsigned int eventsBufferPages, unsigned int kernelStacksMapSize) {
+PyPerfProfiler::PyPerfResult PyPerfProfiler::init(unsigned int symbolsMapSize, unsigned int eventsBufferPages,
+                                                  unsigned int kernelStacksMapSize, unsigned int userStacksPages) {
   std::vector<std::string> cflags;
   cflags.emplace_back(kNumCpusFlag + std::to_string(::sysconf(_SC_NPROCESSORS_ONLN)));
   cflags.emplace_back(kSymbolsHashSizeFlag + std::to_string(symbolsMapSize));
   cflags.emplace_back(kKernelStackTracesSizeFlag + std::to_string(kernelStacksMapSize));
+  cflags.emplace_back(kUserStacksPagesFlag + std::to_string(userStacksPages));
   cflags.emplace_back(kPythonStackProgIdxFlag + std::to_string(kPythonStackProgIdx));
   cflags.emplace_back(kGetThreadStateProgIdxFlag + std::to_string(kGetThreadStateProgIdx));
 

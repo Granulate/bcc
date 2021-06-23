@@ -13,6 +13,7 @@
 
 #include "PyPerfCollapsedPrinter.h"
 #include "PyPerfProfiler.h"
+#include "PyPerfNativeStackTrace.h"
 
 namespace ebpf {
 namespace pyperf {
@@ -90,6 +91,7 @@ void PyPerfCollapsedPrinter::processSamples(
   unsigned int lostSymbols = 0;
   unsigned int truncatedStack = 0;
   unsigned int kernelStackErrors = 0;
+  unsigned int nativeStackErrors = 0;
 
   auto symbols = util->getSymbolMapping();
   auto kernelStacks = util->getKernelStackTraces();
@@ -131,6 +133,13 @@ void PyPerfCollapsedPrinter::processSamples(
       }
     }
 
+    nativeStackErrors += sample.nativeStack.get_errors_count();
+    auto native_symbols = sample.nativeStack.get_stack_symbol();
+    for (auto it = native_symbols.crbegin(); it != native_symbols.crend(); ++it) {
+      auto sym = *it;
+      std::fprintf(output_file, ";%s_[pn]", sym.c_str());
+    }
+
     if (sample.kernelStackId > 0) {
       auto symbols = kernelStacks.get_stack_symbol(sample.kernelStackId, -1);
       for (auto it = symbols.crbegin(); it != symbols.crend(); ++it) {
@@ -152,6 +161,7 @@ void PyPerfCollapsedPrinter::processSamples(
   std::fprintf(stderr, "%d Python symbol errors\n", symbolErrors);
   std::fprintf(stderr, "%d times Python symbol lost\n", lostSymbols);
   std::fprintf(stderr, "%d kernel stack errors\n", kernelStackErrors);
+  std::fprintf(stderr, "%d native stack errors\n", nativeStackErrors);
   std::fprintf(stderr, "%d errors\n", errors);
 
   if (!output_.empty()) {

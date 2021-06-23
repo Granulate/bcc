@@ -48,7 +48,8 @@ RUN apt-get update && apt-get install -y \
       iputils-ping \
       bridge-utils \
       libtinfo5 \
-      libtinfo-dev
+      libtinfo-dev \
+      libunwind-dev
 
 RUN pip3 install pyroute2 netaddr dnslib cachetools
 RUN pip install pyroute2 netaddr dnslib cachetools
