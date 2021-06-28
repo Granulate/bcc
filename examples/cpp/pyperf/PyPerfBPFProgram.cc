@@ -320,9 +320,19 @@ on_event(struct pt_regs* ctx) {
   struct task_struct const *const task = (struct task_struct *)bpf_get_current_task();
 
   // Get raw native user stack
-  struct pt_regs user_regs = *ctx;
-  if (!user_mode(&user_regs)) {
-    // The third argument is equivalent to `task_pt_regs(task)`
+  struct pt_regs user_regs;
+
+  // ebpf doesn't allow direct access to ctx->cs, so we need to copy it
+  int cs;
+  bpf_probe_read_kernel(&cs, sizeof(cs), &(ctx->cs));
+
+  // Are we in user mode?
+  if (cs & 3) {
+    user_regs = *ctx;
+  }
+  else {
+    // The third argument is equivalent to `task_pt_regs(task)` for x86. Macros doesn't
+    // work properly on bcc, so we need to re-implement.
     bpf_probe_read_kernel(
         &user_regs, sizeof(user_regs),
         (struct pt_regs *)((unsigned long)(task->stack) + THREAD_SIZE -
@@ -334,6 +344,7 @@ on_event(struct pt_regs* ctx) {
 
   // Copy one page at the time - if one fails we don't want to lose the others
   int i;
+  #pragma unroll
   for (i = 0; i < __USER_STACKS_PAGES__; ++i) {
     if (bpf_probe_read_user(
             event->raw_user_stack + i * PAGE_SIZE, PAGE_SIZE,

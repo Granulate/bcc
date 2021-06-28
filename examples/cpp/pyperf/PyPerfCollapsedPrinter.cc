@@ -133,7 +133,7 @@ void PyPerfCollapsedPrinter::processSamples(
       }
     }
 
-    nativeStackErrors += sample.nativeStack.get_errors_count();
+    nativeStackErrors += static_cast<int>(sample.nativeStack.error_occured());
     auto native_symbols = sample.nativeStack.get_stack_symbol();
     for (auto it = native_symbols.crbegin(); it != native_symbols.crend(); ++it) {
       auto sym = *it;

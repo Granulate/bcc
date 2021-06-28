@@ -18,11 +18,11 @@ struct NativeStackTrace {
                             size_t stack_len, uint64_t ip, uint64_t sp);
 
   std::vector<std::string> get_stack_symbol() const;
-  unsigned int get_errors_count() const;
+  bool error_occured() const;
 
  private:
   std::vector<std::string> symbols;
-  unsigned int errors;
+  bool error_occurred;
 
   static const uint8_t *stack;
   static size_t stack_len;

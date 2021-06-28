@@ -10,6 +10,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <sstream>
 
 #include "PyPerfLoggingHelper.h"
 
@@ -22,7 +23,7 @@ uint64_t NativeStackTrace::sp = 0;
 uint64_t NativeStackTrace::ip = 0;
 
 NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
-                                   size_t stack_len, uint64_t ip, uint64_t sp) : errors(0) {
+                                   size_t stack_len, uint64_t ip, uint64_t sp) : error_occurred(false) {
   NativeStackTrace::stack = raw_stack;
   NativeStackTrace::stack_len = stack_len;
   NativeStackTrace::ip = ip;
@@ -35,19 +36,19 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
   unw_addr_space_t as = unw_create_addr_space(&my_accessors, 0);
   void *upt = _UPT_create(pid);
   if (!upt) {
-    logInfo(1, "Failed to _UPT_create\n");
-    this->symbols.push_back(std::string("[Error]"));
-    errors++;
+    this->symbols.push_back(std::string("[Error _UPT_create (system OOM)]"));
+    this->error_occurred = true;
     return;
   }
 
   unw_cursor_t cursor;
   int res = unw_init_remote(&cursor, as, upt);
   if (res) {
-    logInfo(1, "Failed to unw_init_remote: %s\n", unw_strerror(res));
-    this->symbols.push_back(std::string("[Error]"));
-    errors++;
-    return;
+    std::ostringstream error;
+    error << "[Error unw_init_remote (" << unw_strerror(res) << ")]";
+    this->symbols.push_back(error.str());
+    this->error_occurred = true;
+    goto out;
   }
 
   do {
@@ -64,7 +65,7 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
               "(SP=0x%lx)\n",
               ip, NativeStackTrace::sp);
       this->symbols.push_back(std::string("(missing)"));
-      errors++;
+      this->error_occurred = true;
       break;
     }
 
@@ -76,8 +77,8 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
     }
   } while (unw_step(&cursor) > 0);
 
+out:
   _UPT_destroy(upt);
-  return;
 }
 
 int NativeStackTrace::access_reg(unw_addr_space_t as, unw_regnum_t regnum,
@@ -144,8 +145,8 @@ std::vector<std::string> NativeStackTrace::get_stack_symbol() const {
   return symbols;
 }
 
-unsigned int NativeStackTrace::get_errors_count() const {
-  return errors;
+bool NativeStackTrace::error_occured() const {
+  return error_occurred;
 }
 
 }  // namespace pyperf
