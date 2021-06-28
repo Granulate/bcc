@@ -174,7 +174,7 @@ PyPerfProfiler::PyPerfResult PyPerfProfiler::init(unsigned int symbolsMapSize, u
 
   auto initRes = bpf_.init(PYPERF_BPF_PROGRAM, cflags);
   if (initRes.code() != 0) {
-    std::fprintf(stderr, "Failed to compiled PyPerf BPF programs: %s\n",
+    std::fprintf(stderr, "Failed to compile PyPerf BPF programs: %s\n",
                  initRes.msg().c_str());
     return PyPerfResult::INIT_FAIL;
   }
