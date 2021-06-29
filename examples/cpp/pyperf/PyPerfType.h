@@ -216,11 +216,11 @@ typedef struct event {
   // hashmap with Symbols and only store the ids here
   int32_t stack_len;
   int32_t stack[STACK_MAX_LEN];
+#define FRAME_CODE_IS_NULL ((int32_t)0x80000001)
   uint64_t user_ip;
   uint64_t user_sp;
   uint32_t user_stack_len;
   uint8_t raw_user_stack[]; // NOTICE: Field with variadic length - must be last!
-#define FRAME_CODE_IS_NULL ((int32_t)0x80000001)
 } Event;
 
 struct PyPerfSample {
@@ -231,8 +231,6 @@ struct PyPerfSample {
   uint8_t stackStatus;
   int32_t kernelStackId;
   std::vector<int32_t> pyStackIds;
-  uint64_t userIp;
-  uint64_t userSp;
   NativeStackTrace nativeStack;
 
   explicit PyPerfSample(const Event* raw, int rawSize)
@@ -243,8 +241,6 @@ struct PyPerfSample {
         stackStatus(raw->stack_status),
         kernelStackId(raw->kernel_stack_id),
         pyStackIds(raw->stack, raw->stack + raw->stack_len),
-        userIp(raw->user_ip),
-        userSp(raw->user_sp),
         nativeStack(raw->pid, raw->raw_user_stack, raw->user_stack_len,
                     raw->user_ip, raw->user_sp) {}
 };

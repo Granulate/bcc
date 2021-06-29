@@ -349,8 +349,8 @@ on_event(struct pt_regs* ctx) {
     if (bpf_probe_read_user(
             event->raw_user_stack + i * PAGE_SIZE, PAGE_SIZE,
             (void *)((user_regs.sp & PAGE_MASK) + (i * PAGE_SIZE))) < 0) {
-        break;
-      }
+      break;
+    }
   }
   event->user_stack_len = i * PAGE_SIZE;
 

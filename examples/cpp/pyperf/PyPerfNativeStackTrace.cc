@@ -6,6 +6,7 @@
 #include "PyPerfNativeStackTrace.h"
 
 #include <sys/uio.h>
+#include <errno.h>
 #include <unistd.h>
 
 #include <cstdio>
@@ -69,6 +70,9 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
       break;
     }
 
+    // Unwind only until we get to the function from which the current Python function is executed.
+    // On Python3 the main loop function is called "_PyEval_EvalFrameDefault", and on Python2 it's
+    // "PyEval_EvalFrameEx".
     if (memcmp(sym, "_PyEval_EvalFrameDefault",
                 sizeof("_PyEval_EvalFrameDefault")) == 0 ||
         memcmp(sym, "PyEval_EvalFrameEx", sizeof("PyEval_EvalFrameEx")) == 0)
@@ -102,7 +106,7 @@ int NativeStackTrace::access_reg(unw_addr_space_t as, unw_regnum_t regnum,
     return 0;
   }
   else {
-    logInfo(2, "Libunwind attempts to %s regnum %d\n", write ? "write" : "read", regnum);
+    logInfo(3, "Libunwind attempts to %s regnum %d\n", write ? "write" : "read", regnum);
     return -UNW_EBADREG;
   }
 }
@@ -110,7 +114,7 @@ int NativeStackTrace::access_reg(unw_addr_space_t as, unw_regnum_t regnum,
 int NativeStackTrace::access_mem(unw_addr_space_t as, unw_word_t addr,
                                  unw_word_t *valp, int write, void *arg) {
   if (write) {
-    logInfo(2, "Libunwind mem write attempt\n");
+    logInfo(3, "Libunwind unexpected mem write attempt\n");
     return -UNW_EINVAL;
   }
 
@@ -120,11 +124,11 @@ int NativeStackTrace::access_mem(unw_addr_space_t as, unw_word_t addr,
   if (addr >= NativeStackTrace::sp && addr < stack_end) {
     memcpy(valp, &stack[addr - stack_start], sizeof(*valp));
     return 0;
-  } else if ((addr >= stack_end && addr < stack_end + getpagesize() * 2) ||
-             (addr >= stack_start - getpagesize() && addr < NativeStackTrace::sp)) {
+  } else if ((addr >= stack_end && addr < stack_end + getpagesize() * 3) ||
+             (addr >= stack_start - getpagesize() * 3 && addr < NativeStackTrace::sp)) {
     // Memory accesses around the pages we copied are assumed to be accesses to the
     // stack that we shouldn't allow
-    logInfo(2, "Libunwind failed attempt to access stack at 0x%lx (SP=0x%lx)\n", addr,
+    logInfo(2, "Libunwind attempt to access stack at not-copied address 0x%lx (SP=0x%lx)\n", addr,
             NativeStackTrace::sp);
     return -UNW_EINVAL;
   }
@@ -137,7 +141,7 @@ int NativeStackTrace::access_mem(unw_addr_space_t as, unw_word_t addr,
     return 0;
   }
 
-  logInfo(2, "process_vm_readv to %p failed\n", addr);
+  logInfo(2, "Write to 0x%lx using process_vm_readv failed with %d (%s)\n", addr, errno, strerror(errno));
   return -UNW_EINVAL;
 }
 

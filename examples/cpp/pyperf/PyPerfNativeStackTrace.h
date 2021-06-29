@@ -12,7 +12,7 @@
 namespace ebpf {
 namespace pyperf {
 
-struct NativeStackTrace {
+class NativeStackTrace {
  public:
   explicit NativeStackTrace(uint32_t pid, const uint8_t *raw_stack,
                             size_t stack_len, uint64_t ip, uint64_t sp);
