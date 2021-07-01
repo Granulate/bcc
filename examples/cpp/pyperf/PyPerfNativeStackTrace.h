@@ -15,7 +15,7 @@ namespace pyperf {
 class NativeStackTrace {
  public:
   explicit NativeStackTrace(uint32_t pid, const uint8_t *raw_stack,
-                            size_t stack_len, uint64_t ip, uint64_t sp);
+                            size_t stack_len, uintptr_t ip, uintptr_t sp);
 
   std::vector<std::string> get_stack_symbol() const;
   bool error_occured() const;
@@ -26,8 +26,8 @@ class NativeStackTrace {
 
   static const uint8_t *stack;
   static size_t stack_len;
-  static uint64_t ip;
-  static uint64_t sp;
+  static uintptr_t ip;
+  static uintptr_t sp;
 
   static int access_reg(unw_addr_space_t as, unw_regnum_t regnum,
                         unw_word_t *valp, int write, void *arg);

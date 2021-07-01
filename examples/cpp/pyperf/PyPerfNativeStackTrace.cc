@@ -20,11 +20,11 @@ namespace pyperf {
 
 const uint8_t *NativeStackTrace::stack = NULL;
 size_t NativeStackTrace::stack_len = 0;
-uint64_t NativeStackTrace::sp = 0;
-uint64_t NativeStackTrace::ip = 0;
+uintptr_t NativeStackTrace::sp = 0;
+uintptr_t NativeStackTrace::ip = 0;
 
 NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
-                                   size_t stack_len, uint64_t ip, uint64_t sp) : error_occurred(false) {
+                                   size_t stack_len, uintptr_t ip, uintptr_t sp) : error_occurred(false) {
   NativeStackTrace::stack = raw_stack;
   NativeStackTrace::stack_len = stack_len;
   NativeStackTrace::ip = ip;
@@ -56,15 +56,16 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
     unw_word_t offset;
     char sym[256];
 
-    if (unw_get_proc_name(&cursor, sym, sizeof(sym), &offset) == 0) {
+    res = unw_get_proc_name(&cursor, sym, sizeof(sym), &offset);
+    if (res == 0) {
       this->symbols.push_back(std::string(sym));
     } else {
       unw_word_t ip;
       unw_get_reg(&cursor, UNW_REG_IP, &ip);
       logInfo(2,
-              "0x%lx -- error: unable to obtain symbol name for this frame "
+              "IP=0x%lx -- error: unable to obtain symbol name for this frame - %s "
               "(SP=0x%lx)\n",
-              ip, NativeStackTrace::sp);
+              ip, unw_strerror(res));
       this->symbols.push_back(std::string("(missing)"));
       this->error_occurred = true;
       break;

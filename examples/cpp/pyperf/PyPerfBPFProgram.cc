@@ -165,8 +165,8 @@ struct event {
   // hashmap with Symbols and only store the ids here
   uint32_t stack_len;
   int32_t stack[STACK_MAX_LEN];
-  uint64_t user_ip;
-  uint64_t user_sp;
+  uintptr_t user_ip;
+  uintptr_t user_sp;
   uint32_t user_stack_len;
   uint8_t raw_user_stack[__USER_STACKS_PAGES__ * PAGE_SIZE];
 #define FRAME_CODE_IS_NULL 0x80000001
@@ -339,20 +339,22 @@ on_event(struct pt_regs* ctx) {
                            TOP_OF_KERNEL_STACK_PADDING) - 1);
   }
 
-  event->user_sp = user_regs.sp;
+  // Subtract 128 for x86-ABI red zone
+  event->user_sp = user_regs.sp - 128;
   event->user_ip = user_regs.ip;
+  event->user_stack_len = 0;
 
   // Copy one page at the time - if one fails we don't want to lose the others
   int i;
   #pragma unroll
-  for (i = 0; i < __USER_STACKS_PAGES__; ++i) {
+  for (i = 0; i < sizeof(event->raw_user_stack) / PAGE_SIZE; ++i) {
     if (bpf_probe_read_user(
             event->raw_user_stack + i * PAGE_SIZE, PAGE_SIZE,
             (void *)((user_regs.sp & PAGE_MASK) + (i * PAGE_SIZE))) < 0) {
       break;
     }
+    event->user_stack_len = (i + 1) * PAGE_SIZE;
   }
-  event->user_stack_len = i * PAGE_SIZE;
 
   if (pid_data->interp == 0) {
     // This is the first time we sample this process (or the GIL is still released).

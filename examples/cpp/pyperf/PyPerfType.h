@@ -217,8 +217,8 @@ typedef struct event {
   int32_t stack_len;
   int32_t stack[STACK_MAX_LEN];
 #define FRAME_CODE_IS_NULL ((int32_t)0x80000001)
-  uint64_t user_ip;
-  uint64_t user_sp;
+  uintptr_t user_ip;
+  uintptr_t user_sp;
   uint32_t user_stack_len;
   uint8_t raw_user_stack[]; // NOTICE: Field with variadic length - must be last!
 } Event;
