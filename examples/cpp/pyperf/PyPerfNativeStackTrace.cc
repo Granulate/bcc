@@ -123,14 +123,16 @@ int NativeStackTrace::access_mem(unw_addr_space_t as, unw_word_t addr,
     return -UNW_EINVAL;
   }
 
-  const unw_word_t stack_start = NativeStackTrace::sp & ~(getpagesize() - 1);
-  const unw_word_t stack_end = stack_start + NativeStackTrace::stack_len;
+  // Subtract 128 for x86-ABI red zone
+  const uintptr_t top_of_stack = NativeStackTrace::sp - 128;
+  const uintptr_t stack_start = top_of_stack & ~(getpagesize() - 1);
+  const uintptr_t stack_end = stack_start + NativeStackTrace::stack_len;
 
-  if (addr >= NativeStackTrace::sp && addr < stack_end) {
+  if (addr >= top_of_stack && addr < stack_end) {
     memcpy(valp, &stack[addr - stack_start], sizeof(*valp));
     return 0;
   } else if ((addr >= stack_end && addr < stack_end + getpagesize() * 3) ||
-             (addr >= stack_start - getpagesize() * 3 && addr < NativeStackTrace::sp)) {
+             (addr >= stack_start - getpagesize() * 3 && addr < top_of_stack)) {
     // Memory accesses around the pages we copied are assumed to be accesses to the
     // stack that we shouldn't allow
     logInfo(2, "Libunwind attempt to access stack at not-copied address 0x%lx (SP=0x%lx)\n", addr,

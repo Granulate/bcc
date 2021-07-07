@@ -339,10 +339,12 @@ on_event(struct pt_regs* ctx) {
                            TOP_OF_KERNEL_STACK_PADDING) - 1);
   }
 
-  // Subtract 128 for x86-ABI red zone
-  event->user_sp = user_regs.sp - 128;
+  event->user_sp = user_regs.sp;
   event->user_ip = user_regs.ip;
   event->user_stack_len = 0;
+
+  // Subtract 128 from sp for x86-ABI red zone
+  uintptr_t top_of_stack = user_regs.sp - 128;
 
   // Copy one page at the time - if one fails we don't want to lose the others
   int i;
@@ -350,7 +352,7 @@ on_event(struct pt_regs* ctx) {
   for (i = 0; i < sizeof(event->raw_user_stack) / PAGE_SIZE; ++i) {
     if (bpf_probe_read_user(
             event->raw_user_stack + i * PAGE_SIZE, PAGE_SIZE,
-            (void *)((user_regs.sp & PAGE_MASK) + (i * PAGE_SIZE))) < 0) {
+            (void *)((top_of_stack & PAGE_MASK) + (i * PAGE_SIZE))) < 0) {
       break;
     }
     event->user_stack_len = (i + 1) * PAGE_SIZE;
