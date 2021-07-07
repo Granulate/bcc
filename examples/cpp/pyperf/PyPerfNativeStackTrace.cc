@@ -30,6 +30,10 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
   NativeStackTrace::ip = ip;
   NativeStackTrace::sp = sp;
 
+  if (stack_len == 0) {
+    return;
+  }
+
   unw_accessors_t my_accessors = _UPT_accessors;
   my_accessors.access_mem = NativeStackTrace::access_mem;
   my_accessors.access_reg = NativeStackTrace::access_reg;
