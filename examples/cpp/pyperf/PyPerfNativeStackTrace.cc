@@ -60,16 +60,20 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
     unw_word_t offset;
     char sym[256];
 
+    // TODO: This function is very heavy. We should try to do some caching here, maybe in the
+    //       underlying UPT function.
     res = unw_get_proc_name(&cursor, sym, sizeof(sym), &offset);
     if (res == 0) {
       this->symbols.push_back(std::string(sym));
     } else {
       unw_word_t ip;
       unw_get_reg(&cursor, UNW_REG_IP, &ip);
+      unw_word_t sp;
+      unw_get_reg(&cursor, UNW_REG_SP, &sp);
       logInfo(2,
               "IP=0x%lx -- error: unable to obtain symbol name for this frame - %s "
-              "(SP=0x%lx)\n",
-              ip, unw_strerror(res));
+              "(frame SP=0x%lx)\n",
+              ip, unw_strerror(res), sp);
       this->symbols.push_back(std::string("(missing)"));
       this->error_occurred = true;
       break;
@@ -140,11 +144,25 @@ int NativeStackTrace::access_mem(unw_addr_space_t as, unw_word_t addr,
     return -UNW_EINVAL;
   }
 
+  // Naive cache for this kind of requests.
+  // The improvement here is pretty significant - libunwind performs consecutive calls with the same
+  // address, so it has around 70-80% hit rate
+  // TODO: Maybe we can improve it further by cacheing the entire page
+  static unw_word_t last_valp = 0;
+  static unw_word_t last_addr = 0;
+
+  if (addr == last_addr) {
+    *valp = last_valp;
+    return 0;
+  }
+
   struct iovec local = {valp, sizeof(*valp)};
   struct iovec remote = {(void *)addr, sizeof(*valp)};
 
   if (process_vm_readv(*(pid_t *)arg, &local, 1, &remote, 1, 0) ==
       sizeof(*valp)) {
+    last_addr = addr;
+    last_valp = *valp;
     return 0;
   }
 
