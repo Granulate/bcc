@@ -52,6 +52,8 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
   }
 
   unw_cursor_t cursor;
+  // TODO: It's possible to make libunwind use cache using unw_set_caching_policy, which might lead to significent
+  //       performance improvement. We just need to make sure it's not dangerous. For now the overhead is good enough.
   int res = unw_init_remote(&cursor, as, upt);
   if (res) {
     std::ostringstream error;
