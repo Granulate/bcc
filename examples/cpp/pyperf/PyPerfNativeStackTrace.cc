@@ -18,6 +18,7 @@
 namespace ebpf {
 namespace pyperf {
 
+// Ideally it was preferable to save this as the context in libunwind accessors, but it's already used by UPT
 const uint8_t *NativeStackTrace::stack = NULL;
 size_t NativeStackTrace::stack_len = 0;
 uintptr_t NativeStackTrace::sp = 0;
@@ -37,6 +38,10 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
   unw_accessors_t my_accessors = _UPT_accessors;
   my_accessors.access_mem = NativeStackTrace::access_mem;
   my_accessors.access_reg = NativeStackTrace::access_reg;
+
+  // The UPT implementation of these functions uses ptrace. We want to make sure they aren't getting called
+  my_accessors.access_fpreg = NULL;
+  my_accessors.resume = NULL;
 
   unw_addr_space_t as = unw_create_addr_space(&my_accessors, 0);
   void *upt = _UPT_create(pid);
@@ -135,8 +140,8 @@ int NativeStackTrace::access_mem(unw_addr_space_t as, unw_word_t addr,
   if (addr >= top_of_stack && addr < stack_end) {
     memcpy(valp, &stack[addr - stack_start], sizeof(*valp));
     return 0;
-  } else if ((addr >= stack_end && addr < stack_end + getpagesize() * 3) ||
-             (addr >= stack_start - getpagesize() * 3 && addr < top_of_stack)) {
+  } else if ((addr >= stack_end && addr < stack_end + getpagesize() * 32) ||
+             (addr >= stack_start - getpagesize() * 32 && addr < top_of_stack)) {
     // Memory accesses around the pages we copied are assumed to be accesses to the
     // stack that we shouldn't allow
     logInfo(2, "Libunwind attempt to access stack at not-copied address 0x%lx (SP=0x%lx)\n", addr,
