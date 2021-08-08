@@ -43,18 +43,19 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
   my_accessors.access_fpreg = NULL;
   my_accessors.resume = NULL;
 
+  int res;
   unw_addr_space_t as = unw_create_addr_space(&my_accessors, 0);
   void *upt = _UPT_create(pid);
   if (!upt) {
     this->symbols.push_back(std::string("[Error _UPT_create (system OOM)]"));
     this->error_occurred = true;
-    return;
+    goto out;
   }
 
   unw_cursor_t cursor;
   // TODO: It's possible to make libunwind use cache using unw_set_caching_policy, which might lead to significent
   //       performance improvement. We just need to make sure it's not dangerous. For now the overhead is good enough.
-  int res = unw_init_remote(&cursor, as, upt);
+  res = unw_init_remote(&cursor, as, upt);
   if (res) {
     std::ostringstream error;
     error << "[Error unw_init_remote (" << unw_strerror(res) << ")]";
@@ -98,7 +99,12 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
   } while (unw_step(&cursor) > 0);
 
 out:
-  _UPT_destroy(upt);
+  if (upt) {
+    _UPT_destroy(upt);
+  }
+  if (as) {
+    unw_destroy_addr_space(as);
+  }
 }
 
 int NativeStackTrace::access_reg(unw_addr_space_t as, unw_regnum_t regnum,
