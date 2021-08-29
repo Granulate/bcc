@@ -32,7 +32,7 @@ extern const std::string PYPERF_BPF_PROGRAM = R"(
 
 #define CLASS_NAME_LEN 32
 #define FUNCTION_NAME_LEN 64
-#define FILE_NAME_LEN 128
+#define FILE_NAME_LEN 256
 #define TASK_COMM_LEN 16
 
 /**
