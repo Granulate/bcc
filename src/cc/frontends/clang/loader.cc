@@ -129,7 +129,7 @@ int ClangLoader::parse(unique_ptr<llvm::Module> *mod, TableStorage &ts,
   struct utsname un;
   uname(&un);
   string kdir, kpath;
-  const char *kpath_env = ::getenv("BCC_KERNEL_SOURCE");
+  const char *kpath_env = "."; // no!
   const char *version_override = ::getenv("BCC_LINUX_VERSION_CODE");
   bool has_kpath_source = false;
   string vmacro;

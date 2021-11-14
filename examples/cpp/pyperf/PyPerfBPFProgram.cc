@@ -12,10 +12,10 @@ namespace ebpf {
 namespace pyperf {
 
 extern const std::string PYPERF_BPF_PROGRAM = R"(
-#include <linux/compiler.h>
-#include <linux/version.h>
-#include <linux/sched.h>
-#include <uapi/linux/ptrace.h>
+// #include <linux/compiler.h>
+// #include <linux/version.h>
+// #include <linux/sched.h>
+// #include <uapi/linux/ptrace.h>
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
@@ -221,20 +221,11 @@ get_task_thread_id(struct task_struct const *task, enum pthreads_impl pthreads_i
   // For musl, see definition of `__pthread_self`.
 
 #ifdef __x86_64__
-// thread_struct->fs was renamed to fsbase in
-// https://github.com/torvalds/linux/commit/296f781a4b7801ad9c1c0219f9e87b6c25e196fe
-// so depending on kernel version, we need to account for that
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
-#define THREAD_FSBASE(task) (task->thread.fs)
-#else
-#define THREAD_FSBASE(task) (task->thread.fsbase)
-#endif
-
   int ret;
   uint64_t fsbase;
   // HACK: Usually BCC would translate a deref of the field into `read_kernel` for us, but it
   //       doesn't detect it due to the macro (because it transforms before preprocessing).
-  bpf_probe_read_kernel(&fsbase, sizeof(fsbase), &THREAD_FSBASE(task));
+  bpf_probe_read_kernel(&fsbase, sizeof(fsbase), (u8*)task + FSBASE_OFS);
 
   switch (pthreads_impl) {
   case PTI_GLIBC:
@@ -320,44 +311,44 @@ on_event(struct pt_regs* ctx) {
   struct task_struct const *const task = (struct task_struct *)bpf_get_current_task();
 
   if (sizeof(event->raw_user_stack) > 0) {
-    // Get raw native user stack
-    struct pt_regs user_regs;
+    // // Get raw native user stack
+    // struct pt_regs user_regs;
 
-    // ebpf doesn't allow direct access to ctx->cs, so we need to copy it
-    int cs;
-    bpf_probe_read_kernel(&cs, sizeof(cs), &(ctx->cs));
+    // // ebpf doesn't allow direct access to ctx->cs, so we need to copy it
+    // int cs;
+    // bpf_probe_read_kernel(&cs, sizeof(cs), &(ctx->cs));
 
-    // Are we in user mode?
-    if (cs & 3) {
-      user_regs = *ctx;
-    }
-    else {
-      // The third argument is equivalent to `task_pt_regs(task)` for x86. Macros doesn't
-      // work properly on bcc, so we need to re-implement.
-      bpf_probe_read_kernel(
-          &user_regs, sizeof(user_regs),
-          (struct pt_regs *)((unsigned long)(task->stack) + THREAD_SIZE -
-                            TOP_OF_KERNEL_STACK_PADDING) - 1);
-    }
+    // // Are we in user mode?
+    // if (cs & 3) {
+    //   user_regs = *ctx;
+    // }
+    // else {
+    //   // The third argument is equivalent to `task_pt_regs(task)` for x86. Macros doesn't
+    //   // work properly on bcc, so we need to re-implement.
+    //   bpf_probe_read_kernel(
+    //       &user_regs, sizeof(user_regs),
+    //       (struct pt_regs *)((unsigned long)(task->stack) + THREAD_SIZE -
+    //                         TOP_OF_KERNEL_STACK_PADDING) - 1);
+    // }
 
-    event->user_sp = user_regs.sp;
-    event->user_ip = user_regs.ip;
-    event->user_stack_len = 0;
+    // event->user_sp = user_regs.sp;
+    // event->user_ip = user_regs.ip;
+    // event->user_stack_len = 0;
 
-    // Subtract 128 from sp for x86-ABI red zone
-    uintptr_t top_of_stack = user_regs.sp - 128;
+    // // Subtract 128 from sp for x86-ABI red zone
+    // uintptr_t top_of_stack = user_regs.sp - 128;
 
-    // Copy one page at the time - if one fails we don't want to lose the others
-    int i;
-    #pragma unroll
-    for (i = 0; i < sizeof(event->raw_user_stack) / PAGE_SIZE; ++i) {
-      if (bpf_probe_read_user(
-              event->raw_user_stack + i * PAGE_SIZE, PAGE_SIZE,
-              (void *)((top_of_stack & PAGE_MASK) + (i * PAGE_SIZE))) < 0) {
-        break;
-      }
-      event->user_stack_len = (i + 1) * PAGE_SIZE;
-    }
+    // // Copy one page at the time - if one fails we don't want to lose the others
+    // int i;
+    // #pragma unroll
+    // for (i = 0; i < sizeof(event->raw_user_stack) / PAGE_SIZE; ++i) {
+    //   if (bpf_probe_read_user(
+    //           event->raw_user_stack + i * PAGE_SIZE, PAGE_SIZE,
+    //           (void *)((top_of_stack & PAGE_MASK) + (i * PAGE_SIZE))) < 0) {
+    //     break;
+    //   }
+    //   event->user_stack_len = (i + 1) * PAGE_SIZE;
+    // }
   }
 
   if (pid_data->interp == 0) {
