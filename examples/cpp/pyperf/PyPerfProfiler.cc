@@ -192,7 +192,9 @@ PyPerfProfiler::PyPerfResult PyPerfProfiler::init(unsigned int symbolsMapSize, u
   cflags.emplace_back(kUserStacksPagesFlag + std::to_string(userStacksPages));
   cflags.emplace_back(kPythonStackProgIdxFlag + std::to_string(kPythonStackProgIdx));
   cflags.emplace_back(kGetThreadStateProgIdxFlag + std::to_string(kGetThreadStateProgIdx));
-  cflags.emplace_back(kFsbaseOffsetFlag + exec(getFsOffset.c_str()));
+  std::string res = exec(getFsOffset.c_str());
+  std::printf("got: %s\n", res.c_str());
+  cflags.emplace_back(kFsbaseOffsetFlag + res);
 
   auto initRes = bpf_.init(PYPERF_BPF_PROGRAM, cflags);
   if (initRes.code() != 0) {
