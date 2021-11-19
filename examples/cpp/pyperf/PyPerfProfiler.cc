@@ -25,12 +25,6 @@
 #include <cstring>
 #include <exception>
 #include <thread>
-#include <cstdio>
-#include <iostream>
-#include <memory>
-#include <stdexcept>
-#include <string>
-#include <array>
 
 #include "PyPerfLoggingHelper.h"
 #include "PyPerfVersion.h"

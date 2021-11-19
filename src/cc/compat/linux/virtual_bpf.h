@@ -10,6 +10,10 @@ R"********(
 #define _UAPI__LINUX_BPF_H__
 
 
+// START COPIED FROM LINUX
+// these macros/types/functions are copied from Linux, specifically from x86_64 where arch is
+// of relevance.
+
 #define __always_inline __attribute__((always_inline))
 
 #define BITS_PER_LONG 64
@@ -49,15 +53,15 @@ typedef __u64 uint64_t;
 typedef __s64 s64;
 typedef __s64 int64_t;
 typedef int pid_t;
-#define __aligned_u64 __u64 __attribute__((aligned(8)))
+typedef int bool;
 
+#define __aligned_u64 __u64 __attribute__((aligned(8)))
 
 #define NULL ((void*)0)
 #define PAGE_MASK 12
 #define ENOSPC 28
 #define PAGE_SIZE 4096
 #define THREAD_SIZE 8192
-
 
 struct pt_regs {
 /*
@@ -160,7 +164,6 @@ static __always_inline int fls(unsigned int x)
 	}
 	return r;
 }
-
 
 static __always_inline int fls64(__u64 x)
 {
@@ -318,9 +321,7 @@ unsigned long __rounddown_pow_of_two(unsigned long n)
 
 #define TOP_OF_KERNEL_STACK_PADDING 0
 
-typedef int bool;
-
-#define CUR_CPU_IDENTIFIER bpf_get_smp_processor_id()
+// END COPIED FROM LINUX
 
 /* Extended instruction set based on top of classic BPF */
 

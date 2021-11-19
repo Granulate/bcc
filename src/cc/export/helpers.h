@@ -47,16 +47,6 @@ R"********(
 #define CC_USING_FENTRY
 #endif
 
-// #include <uapi/linux/bpf.h>
-// #include <uapi/linux/if_packet.h>
-// #include <linux/version.h>
-// #include <linux/log2.h>
-// #include <asm/page.h>
-
-// #ifndef CONFIG_BPF_SYSCALL
-// #error "CONFIG_BPF_SYSCALL is undefined, please check your .config or ask your Linux distro to enable this feature"
-// #endif
-
 #ifdef PERF_MAX_STACK_DEPTH
 #define BPF_MAX_STACK_DEPTH PERF_MAX_STACK_DEPTH
 #else
@@ -184,6 +174,11 @@ struct _name##_table_t { \
 }; \
 __attribute__((section("maps/perf_output"))) \
 struct _name##_table_t _name = { .max_entries = 0 }
+
+// Identifier for current CPU used in perf_submit and perf_read
+// We always use BPF_F_CURRENT_CPU in PyPerf because that's available since 4.8 and PyPerf
+// requires higher kernel version anyway.
+#define CUR_CPU_IDENTIFIER BPF_F_CURRENT_CPU
 
 // Table for pushing custom events to userspace via ring buffer
 #define BPF_RINGBUF_OUTPUT(_name, _num_pages) \

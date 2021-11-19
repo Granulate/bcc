@@ -12,11 +12,6 @@ namespace ebpf {
 namespace pyperf {
 
 extern const std::string PYPERF_BPF_PROGRAM = R"(
-// #include <linux/compiler.h>
-// #include <linux/version.h>
-// #include <linux/sched.h>
-// #include <uapi/linux/ptrace.h>
-
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 #define BAD_THREAD_ID (~0)
