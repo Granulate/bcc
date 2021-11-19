@@ -105,7 +105,8 @@ int main(int argc, char** argv) {
   uint64_t duration = 0;
   uint64_t verbosityLevel = 0;
   std::string output = "";
-  std::string getFsOffset = "";
+  uint64_t fsOffset = 0;
+  uint64_t stackOffset = 0;
 
   while (true) {
     if (pos >= argc) {
@@ -123,7 +124,8 @@ int main(int argc, char** argv) {
     found = found || parseIntArg({"--user-stacks-pages"}, userStacksPages);
     found = found || parseIntArg({"-v", "--verbose"}, verbosityLevel);
     found = found || parseStrArg({"-o", "--output"}, output);
-    found = found || parseStrArg({"--get-fs-offset"}, getFsOffset);
+    found = found || parseIntArg({"--fs-offset"}, fsOffset);
+    found = found || parseIntArg({"--stack-offset"}, stackOffset);
     if (!found) {
       std::fprintf(stderr, "Unexpected argument: %s\n", argv[pos]);
       std::exit(1);
@@ -157,7 +159,7 @@ int main(int argc, char** argv) {
     ebpf::pyperf::PyPerfProfiler profiler;
     profiler.update_interval = std::chrono::seconds{updateIntervalSecs};
 
-    auto res = profiler.init(symbolsMapSize, eventsBufferPages, kernelStacksMapSize, userStacksPages, getFsOffset);
+    auto res = profiler.init(symbolsMapSize, eventsBufferPages, kernelStacksMapSize, userStacksPages, fsOffset, stackOffset);
     if (res != ebpf::pyperf::PyPerfProfiler::PyPerfResult::SUCCESS) {
       std::exit((int)res);
     }

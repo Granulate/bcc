@@ -63,22 +63,10 @@ const static std::string kNumCpusFlag("-DNUM_CPUS=");
 const static std::string kSymbolsHashSizeFlag("-D__SYMBOLS_SIZE__=");
 const static std::string kKernelStackTracesSizeFlag("-D__KERNEL_STACKS_SIZE__=");
 const static std::string kUserStacksPagesFlag("-D__USER_STACKS_PAGES__=");
-const static std::string kFsbaseOffsetFlag("-DFSBASE_OFS=");
+const static std::string kFsOffsetFlag("-DFS_OFS=");
+const static std::string kStackOffsetFlag("-DSTACK_OFS=");
 
 namespace {
-
-std::string exec(const char* cmd) {
-    std::array<char, 128> buffer;
-    std::string result;
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
-    if (!pipe) {
-        throw std::runtime_error("popen() failed!");
-    }
-    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-        result += buffer.data();
-    }
-    return result;
-}
 
 bool allAddrFound(const PythonSymbols& symbols) {
   return (symbols._PyRuntime || symbols._PyThreadState_Current);
@@ -184,7 +172,7 @@ void handleLostSamplesCallback(void* cb_cookie, uint64_t lost_cnt) {
 
 PyPerfProfiler::PyPerfResult PyPerfProfiler::init(unsigned int symbolsMapSize, unsigned int eventsBufferPages,
                                                   unsigned int kernelStacksMapSize, unsigned int userStacksPages,
-                                                  std::string getFsOffset) {
+                                                  unsigned int fsOffset, unsigned int stackOffset) {
   std::vector<std::string> cflags;
   cflags.emplace_back(kNumCpusFlag + std::to_string(::sysconf(_SC_NPROCESSORS_ONLN)));
   cflags.emplace_back(kSymbolsHashSizeFlag + std::to_string(symbolsMapSize));
@@ -192,9 +180,8 @@ PyPerfProfiler::PyPerfResult PyPerfProfiler::init(unsigned int symbolsMapSize, u
   cflags.emplace_back(kUserStacksPagesFlag + std::to_string(userStacksPages));
   cflags.emplace_back(kPythonStackProgIdxFlag + std::to_string(kPythonStackProgIdx));
   cflags.emplace_back(kGetThreadStateProgIdxFlag + std::to_string(kGetThreadStateProgIdx));
-  std::string res = exec(getFsOffset.c_str());
-  std::printf("got: %s\n", res.c_str());
-  cflags.emplace_back(kFsbaseOffsetFlag + res);
+  cflags.emplace_back(kFsOffsetFlag + std::to_string(fsOffset));
+  cflags.emplace_back(kStackOffsetFlag + std::to_string(stackOffset));
 
   auto initRes = bpf_.init(PYPERF_BPF_PROGRAM, cflags);
   if (initRes.code() != 0) {
