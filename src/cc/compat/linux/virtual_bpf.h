@@ -58,9 +58,9 @@ typedef int bool;
 #define __aligned_u64 __u64 __attribute__((aligned(8)))
 
 #define NULL ((void*)0)
-#define PAGE_MASK 12
 #define ENOSPC 28
 #define PAGE_SIZE 4096
+#define PAGE_MASK (~(PAGE_SIZE-1))
 #define THREAD_SIZE 8192
 
 struct pt_regs {
