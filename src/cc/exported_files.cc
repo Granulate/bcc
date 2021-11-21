@@ -41,6 +41,10 @@ map<string, const char *> ExportedFiles::headers_ = {
     "/virtual/lib/clang/include/stdarg.h",
     #include "clang/include/stdarg.h"
   },
+  {
+    "/virtual/include/linux/types.h",
+    #include "compat/linux/types.h"
+  }
 };
 
 map<string, const char *> ExportedFiles::footers_ = {
