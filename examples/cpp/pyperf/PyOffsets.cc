@@ -189,12 +189,54 @@ extern const struct struct_offsets kPy38OffsetConfig = {
     }
 };
 
+extern const struct struct_offsets kPy310OffsetConfig = {
+    .PyObject = {
+        .ob_type = 8
+    },
+    .String = {
+        .data = 48,                // offsetof(PyStringObject, ob_sval)
+        .size = -1,                // offsetof(PyVarObject, ob_size)
+    },
+    .PyTypeObject = {
+        .tp_name = 24
+    },
+    .PyThreadState = {
+        .next = 8,
+        .interp = 16,
+        .frame = 24,
+        .thread = 176,
+    },
+    .PyInterpreterState = {
+        .tstate_head = 8,
+    },
+    .PyRuntimeState = {
+        .interp_main = 40, // N/A
+    },
+    .PyFrameObject = {
+        .f_back = 24,
+        .f_code = 32,
+        .f_lineno = 100,
+        .f_localsplus = 352,
+    },
+    .PyCodeObject = {
+        .co_filename = 104,
+        .co_name = 112,
+        .co_varnames = 72,
+        .co_firstlineno = 40,
+    },
+    .PyTupleObject = {
+        .ob_item = 24
+    },
+};
+
 // List of mappings from Python 3 minor versions to offsets. `get_offsets` depends on this list
 // being sorted in ascending order when it searches through it.
 const std::vector<std::pair<version, struct_offsets>> python3Versions = {
     {{3,6,0}, kPy36OffsetConfig},
     {{3,7,0}, kPy37OffsetConfig},
     {{3,8,0}, kPy38OffsetConfig},
+    // 3.9 is same as 3.8
+    {{3,10,0}, kPy310OffsetConfig},
 };
 
 const struct_offsets& get_offsets(version& version) {
