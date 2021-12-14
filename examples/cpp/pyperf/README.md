@@ -8,10 +8,18 @@ It works with Python 2.7, and 3.6 through 3.9.
 
 ```
 PyPerf [-p|--pid PID]
-       [-d|--duration DURATION_SECONDS]
+       [-c|--sample-rate RATE]
        [-F|--frequency FREQUENCY_HZ]
+       [-d|--duration DURATION_SECONDS]
+       [--update-interval INTERVAL]
+       [--symbols-map-size SIZE]
+       [--events-buffer-pages PAGES]
+       [--kernel-stacks-map-size SIZE]
+       [--user-stacks-pages PAGES]
        [-v|--verbose VERBOSITY]
        [-o|--output FILENAME]
+       [--fs-offset OFFSET]
+       [--stack-offset OFFSET]
 ```
 
 A FlameGraph-style stackcollapse listing is written to the output filename (or standard output if
