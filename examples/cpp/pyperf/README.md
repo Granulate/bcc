@@ -22,6 +22,12 @@ PyPerf [-p|--pid PID]
        [--stack-offset OFFSET]
 ```
 
+`--frequency` and `--sample-rate` are mutually exclusive, and analogous to `sample_freq` and `sample_period` from `perf_event_open(2)`:
+
+> A "sampling" event is one that generates an overflow notification every N events, where N is given by `sample_period`.   `sample_freq` can be used if you wish to use frequency rather than period. In this case, you set the freq flag. The  kernel will adjust the sampling period to try and achieve the desired rate.  The rate of adjustment is a timer tick.
+
+Thus, frequency is the number of desired samples per second, whereas rate is number of timer ticks between samples.
+
 A FlameGraph-style stackcollapse listing is written to the output filename (or standard output if
 not specified). You can use standard FlameGraph tools to visualize the result.
 
