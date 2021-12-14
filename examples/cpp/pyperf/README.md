@@ -8,7 +8,7 @@ It works with Python 2.7, and 3.6 through 3.9.
 
 ```
 PyPerf [-p|--pid PID]
-       [-d|--duration DURATION_MS]
+       [-d|--duration DURATION_SECONDS]
        [-F|--frequency FREQUENCY_HZ]
        [-v|--verbose VERBOSITY]
        [-o|--output FILENAME]
