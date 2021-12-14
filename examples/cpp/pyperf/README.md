@@ -8,10 +8,10 @@ It works with Python 2.7, and 3.6 through 3.9.
 
 ```
 PyPerf [-p|--pid PID]
-       [-c|--sample-rate RATE]
-       [-F|--frequency FREQUENCY_HZ]
-       [-d|--duration DURATION_SECONDS]
-       [--update-interval INTERVAL]
+       [-c|--sample-rate TICKS]
+       [-F|--frequency HZ]
+       [-d|--duration SECONDS]
+       [--update-interval SECONDS]
        [--symbols-map-size SIZE]
        [--events-buffer-pages PAGES]
        [--kernel-stacks-map-size SIZE]
