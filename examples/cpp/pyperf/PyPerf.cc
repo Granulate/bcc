@@ -143,6 +143,16 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  // checking against 0 which technically is a legit offset, but it won't ever happen
+  // for these fields, so it's okay as a sentinel.
+  if (fsOffset == 0) {
+    std::fprintf(stderr, "--fs-offset must be given!\n");
+    return 1;
+  } else if (stackOffset == 0) {
+    std::fprintf(stderr, "--stack-offset must be given!\n");
+    return 1;
+  }
+
   if (sampleRate != 0) {
     ebpf::pyperf::logInfo(1, "Profiling Sample Rate: %" PRIu64 "\n",
                           sampleRate);
