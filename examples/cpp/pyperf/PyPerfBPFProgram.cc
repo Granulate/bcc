@@ -327,8 +327,8 @@ on_event(struct pt_regs* ctx) {
           &user_regs, sizeof(user_regs),
           // Note - BCC emits an implicit bpf_probe_read_kernel() here (for the deref of 'task').
           // I don't like the implicitness (and it will be something we'll need to fix if we're ever
-          // to move from BCC). But meanwhile, I tried to change it to explicit and the BPF assembly
-          // varies to much as I prefer to avoid this change now ;(
+          // to move from BCC). Meanwhile, I tried to change it to be explicit but the BPF assembly
+          // varies too much so I prefer to avoid this change now ;(
           (struct pt_regs *)(*(unsigned long*)((unsigned long)task + STACK_OFS) + THREAD_SIZE -
                             TOP_OF_KERNEL_STACK_PADDING) - 1);
     }
