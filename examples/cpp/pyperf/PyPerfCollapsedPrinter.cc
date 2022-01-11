@@ -19,7 +19,7 @@ namespace ebpf {
 namespace pyperf {
 
 const static std::string kLostSymbol = "[Lost Symbol]";
-const static std::string kTruncatedStack = "[Truncated]";
+const static std::string kTruncatedStack = "[Truncated Python Stack]";
 
 PyPerfCollapsedPrinter::PyPerfCollapsedPrinter(std::string& output) {
   output_ = output;
