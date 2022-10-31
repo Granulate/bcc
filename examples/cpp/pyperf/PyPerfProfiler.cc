@@ -27,8 +27,9 @@
 #include <thread>
 
 #include "PyPerfLoggingHelper.h"
-#include "PyPerfVersion.h"
+#include "PyPerfNativeStackTrace.h"
 #include "PyPerfProc.h"
+#include "PyPerfVersion.h"
 #include "bcc_elf.h"
 #include "bcc_proc.h"
 #include "bcc_syms.h"
@@ -239,15 +240,19 @@ bool PyPerfProfiler::populatePidTable() {
   for (const auto pid : pid_config_keys) {
     auto pos = std::find(pids.begin(), pids.end(), pid);
     if (pos == pids.end()) {
+      // Remove dead pid from config map and native stack trace's cache
       pid_config_map.remove_value(pid);
+      NativeStackTrace::Prune_dead_pid(pid);
     }
     else {
       result = true;
+      // To avoid re-population
       pids.erase(pos);
     }
   }
 
   logInfo(3, "Populating pid table\n");
+  // Populate only those pids not seen before
   for (const auto pid : pids) {
     PidData pidData;
 
