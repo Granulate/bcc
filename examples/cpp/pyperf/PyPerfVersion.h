@@ -13,7 +13,7 @@ struct version {
   unsigned int major, minor, patch;
 };
 
-bool operator<(version a, version b);
+bool operator<=(version a, version b);
 
 bool get_python_version(int python_fd, std::string& filever, version& version);
 

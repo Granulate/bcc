@@ -84,6 +84,17 @@ int main(int argc, char** argv) {
     return false;
   };
 
+  auto parseFlag = [&](std::vector<std::string> argNames, bool& target, bool value=true) {
+    std::string arg(argv[pos]);
+    for (const auto& name : argNames) {
+      if (arg == name) {
+        target = value;
+        return true;
+      }
+    }
+    return false;
+  };
+
   auto parseIntListArg = [&](std::vector<std::string> argNames, std::vector<uint64_t>& target) {
     uint64_t value;
     if (parseIntArg(argNames, value)) {
@@ -107,6 +118,7 @@ int main(int argc, char** argv) {
   std::string output = "";
   uint64_t fsOffset = 0;
   uint64_t stackOffset = 0;
+  bool insertDsoName = false;
 
   while (true) {
     if (pos >= argc) {
@@ -126,6 +138,7 @@ int main(int argc, char** argv) {
     found = found || parseStrArg({"-o", "--output"}, output);
     found = found || parseIntArg({"--fs-offset"}, fsOffset);
     found = found || parseIntArg({"--stack-offset"}, stackOffset);
+    found = found || parseFlag({"--insert-dso-name"}, insertDsoName);
     if (!found) {
       std::fprintf(stderr, "Unexpected argument: %s\n", argv[pos]);
       std::exit(1);
@@ -169,7 +182,7 @@ int main(int argc, char** argv) {
     ebpf::pyperf::PyPerfProfiler profiler;
     profiler.update_interval = std::chrono::seconds{updateIntervalSecs};
 
-    auto res = profiler.init(symbolsMapSize, eventsBufferPages, kernelStacksMapSize, userStacksPages, fsOffset, stackOffset);
+    auto res = profiler.init(symbolsMapSize, eventsBufferPages, kernelStacksMapSize, userStacksPages, fsOffset, stackOffset, insertDsoName);
     if (res != ebpf::pyperf::PyPerfProfiler::PyPerfResult::SUCCESS) {
       std::exit((int)res);
     }

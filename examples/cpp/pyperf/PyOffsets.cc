@@ -452,7 +452,7 @@ const struct_offsets& get_offsets(version& version) {
   else {
     // Find offsets for Python 3 version:
     auto it = std::find_if(python3Versions.crbegin(), python3Versions.crend(), [&](auto item){
-      return item.first < version;
+      return item.first <= version;
     });
     return it->second;
   }

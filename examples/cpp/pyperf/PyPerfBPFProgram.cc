@@ -613,7 +613,7 @@ get_classname(
   struct symbol *symbol) {
   int result = 0;
   // Figure out if we want to parse class name, basically checking the name of
-  // the first argument. If it's 'self', we get the type and it's name, if it's
+  // the first argument. If it's 'self', we get the type and its name, if it's
   // 'cls', we just get the name. This is not perfect but there is no better way
   // to figure this out from the code object.
   char argname[MAX(sizeof("self"), sizeof("cls"))];

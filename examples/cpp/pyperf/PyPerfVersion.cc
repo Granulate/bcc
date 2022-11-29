@@ -12,14 +12,14 @@
 namespace ebpf {
 namespace pyperf {
 
-bool operator<(version a, version b) {
+bool operator<=(version a, version b) {
   if (a.major == b.major) {
     if (a.minor == b.minor) {
-      return a.patch < b.patch;
+      return a.patch <= b.patch;
     }
-    return a.minor < b.minor;
+    return a.minor <= b.minor;
   }
-  return a.major < b.major;
+  return a.major <= b.major;
 }
 
 /**

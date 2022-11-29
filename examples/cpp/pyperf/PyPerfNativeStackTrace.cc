@@ -8,21 +8,39 @@
 #include <sys/uio.h>
 #include <errno.h>
 #include <unistd.h>
+#include <cxxabi.h>
+#include <limits.h>
 
+#include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <sstream>
 
 #include "PyPerfLoggingHelper.h"
+#include "bcc_syms.h"
+#include "syms.h"
 
 namespace ebpf {
 namespace pyperf {
+
+using std::unique_ptr;
 
 // Ideally it was preferable to save this as the context in libunwind accessors, but it's already used by UPT
 const uint8_t *NativeStackTrace::stack = NULL;
 size_t NativeStackTrace::stack_len = 0;
 uintptr_t NativeStackTrace::sp = 0;
 uintptr_t NativeStackTrace::ip = 0;
+ProcSymbolsCache NativeStackTrace::procSymbolsCache;
+bool NativeStackTrace::insert_dso_name = false;
+const static double ProcSymbolsCacheTTL_S = 60;
+
+// external public symbol max size according to recommendation in c++ standard annex B
+const static int SymbolMaxSize = 1024;
+
+static double steady_time_since_epoch() {
+  return std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 
 NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
                                    size_t stack_len, uintptr_t ip, uintptr_t sp) : error_occurred(false) {
@@ -38,6 +56,10 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
   unw_accessors_t my_accessors = _UPT_accessors;
   my_accessors.access_mem = NativeStackTrace::access_mem;
   my_accessors.access_reg = NativeStackTrace::access_reg;
+  ProcSyms* procSymbols = nullptr;
+  // reserve memory for platform-defined path limit AND the symbol
+  const size_t buf_size = SymbolMaxSize + PATH_MAX + sizeof("() ");
+  char buf[buf_size];
 
   // The UPT implementation of these functions uses ptrace. We want to make sure they aren't getting called
   my_accessors.access_fpreg = NULL;
@@ -64,18 +86,31 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
     goto out;
   }
 
+  if (NativeStackTrace::insert_dso_name) {
+    procSymbols = get_proc_symbols(pid);
+  }
+
   do {
     unw_word_t offset;
-    char sym[256];
-
+    unw_word_t ip;
+    struct bcc_symbol resolved_symbol;
+    unw_get_reg(&cursor, UNW_REG_IP, &ip);
+    if (procSymbols && procSymbols->resolve_addr(ip, &resolved_symbol, true)) {
+        snprintf(buf, buf_size, "%s (%s)", resolved_symbol.demangle_name, resolved_symbol.module);
+        this->symbols.push_back(std::string(buf));
     // TODO: This function is very heavy. We should try to do some caching here, maybe in the
     //       underlying UPT function.
-    res = unw_get_proc_name(&cursor, sym, sizeof(sym), &offset);
-    if (res == 0) {
-      this->symbols.push_back(std::string(sym));
+    } else if (!(res = unw_get_proc_name(&cursor, buf, sizeof(buf), &offset))) {
+        int status = 0;
+        char* demangled = nullptr;
+        demangled = abi::__cxa_demangle(buf, nullptr, nullptr, &status);
+        if (!status) {
+          this->symbols.push_back(std::string(demangled));
+        } else {
+          this->symbols.push_back(std::string(buf));
+        }
+        free(demangled);
     } else {
-      unw_word_t ip;
-      unw_get_reg(&cursor, UNW_REG_IP, &ip);
       unw_word_t sp;
       unw_get_reg(&cursor, UNW_REG_SP, &sp);
       logInfo(2,
@@ -90,10 +125,9 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
     // Unwind only until we get to the function from which the current Python function is executed.
     // On Python3 the main loop function is called "_PyEval_EvalFrameDefault", and on Python2 it's
     // "PyEval_EvalFrameEx".
-    if (memcmp(sym, "_PyEval_EvalFrameDefault",
-                sizeof("_PyEval_EvalFrameDefault")) == 0 ||
-        memcmp(sym, "PyEval_EvalFrameEx", sizeof("PyEval_EvalFrameEx")) == 0)
-        {
+    if (symbols.back().compare(0, strlen("_PyEval_EvalFrameDefault"), "_PyEval_EvalFrameDefault") == 0 ||
+        symbols.back().compare(0, strlen("PyEval_EvalFrameEx"), "PyEval_EvalFrameEx") == 0)
+    {
       break;
     }
   } while (unw_step(&cursor) > 0);
@@ -189,6 +223,36 @@ std::vector<std::string> NativeStackTrace::get_stack_symbol() const {
 
 bool NativeStackTrace::error_occured() const {
   return error_occurred;
+}
+
+void NativeStackTrace::prune_dead_pid(uint32_t dead_pid) {
+  auto it = procSymbolsCache.find(dead_pid);
+  if (it != procSymbolsCache.end()) {
+    procSymbolsCache.erase(it);
+  }
+}
+
+void NativeStackTrace::enable_dso_reporting() {
+  NativeStackTrace::insert_dso_name = true;
+}
+
+ProcSyms* NativeStackTrace::get_proc_symbols(uint32_t pid) {
+  struct bcc_symbol_option symbol_options = {
+    .use_debug_file = 1,
+    .check_debug_file_crc = 1,
+    .lazy_symbolize = 1,
+    .use_symbol_type = BCC_SYM_ALL_TYPES
+  };
+  double timestamp_s = steady_time_since_epoch();
+  if (!procSymbolsCache.count(pid)) {
+    procSymbolsCache[pid] = ProcSymbolsCacheEntry{timestamp_s, unique_ptr<ProcSyms>(new ProcSyms(pid, &symbol_options))};
+  } else {
+    if (timestamp_s - procSymbolsCache[pid].timestamp_s > ProcSymbolsCacheTTL_S) {
+      procSymbolsCache[pid].proc_syms->refresh();
+      procSymbolsCache[pid].timestamp_s = timestamp_s;
+    }
+  }
+  return procSymbolsCache[pid].proc_syms.get();
 }
 
 }  // namespace pyperf

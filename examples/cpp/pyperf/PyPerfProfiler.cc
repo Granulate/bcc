@@ -166,7 +166,8 @@ void handleLostSamplesCallback(void* cb_cookie, uint64_t lost_cnt) {
 
 PyPerfProfiler::PyPerfResult PyPerfProfiler::init(unsigned int symbolsMapSize, unsigned int eventsBufferPages,
                                                   unsigned int kernelStacksMapSize, unsigned int userStacksPages,
-                                                  unsigned int fsOffset, unsigned int stackOffset) {
+                                                  unsigned int fsOffset, unsigned int stackOffset,
+                                                  bool insertDsoName) {
   std::vector<std::string> cflags;
   cflags.emplace_back(kNumCpusFlag + std::to_string(::sysconf(_SC_NPROCESSORS_ONLN)));
   cflags.emplace_back(kSymbolsHashSizeFlag + std::to_string(symbolsMapSize));
@@ -177,6 +178,9 @@ PyPerfProfiler::PyPerfResult PyPerfProfiler::init(unsigned int symbolsMapSize, u
   cflags.emplace_back(kFsOffsetFlag + std::to_string(fsOffset));
   cflags.emplace_back(kStackOffsetFlag + std::to_string(stackOffset));
 
+  if (insertDsoName) {
+    NativeStackTrace::enable_dso_reporting();
+  }
   auto initRes = bpf_.init(PYPERF_BPF_PROGRAM, cflags);
   if (initRes.code() != 0) {
     std::fprintf(stderr, "Failed to compile PyPerf BPF programs: %s\n",
@@ -239,15 +243,19 @@ bool PyPerfProfiler::populatePidTable() {
   for (const auto pid : pid_config_keys) {
     auto pos = std::find(pids.begin(), pids.end(), pid);
     if (pos == pids.end()) {
+      // Remove dead pid from config map and native stack trace's cache
       pid_config_map.remove_value(pid);
+      NativeStackTrace::prune_dead_pid(pid);
     }
     else {
       result = true;
+      // To avoid re-population
       pids.erase(pos);
     }
   }
 
   logInfo(3, "Populating pid table\n");
+  // Populate only those pids not seen before
   for (const auto pid : pids) {
     PidData pidData;
 
