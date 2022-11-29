@@ -19,7 +19,7 @@ add_executable(PyPerf
         PyOffsets.cc
         PyPerfNativeStackTrace.cc
         )
-target_link_libraries(PyPerf pthread libunwind-ptrace.a libunwind.a lzma)
+target_link_libraries(PyPerf pthread libunwind.a lzma)
 
 execute_process(COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCHITECTURE)
 
@@ -28,6 +28,7 @@ if(${ARCHITECTURE} STREQUAL "x86_64")
 elseif(${ARCHITECTURE} STREQUAL "aarch64")
     target_link_libraries(PyPerf libunwind-aarch64.a)
 endif()
+target_link_libraries(PyPerf libunwind-ptrace.a)  # after the x86_64/aarch64 link
 
 if(NOT CMAKE_USE_LIBBPF_PACKAGE)
   target_link_libraries(PyPerf bcc-static)
