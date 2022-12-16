@@ -94,9 +94,12 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
     unw_word_t offset;
     unw_word_t ip;
     struct bcc_symbol resolved_symbol;
+    resolved_symbol.module = nullptr;
     unw_get_reg(&cursor, UNW_REG_IP, &ip);
     if (procSymbols && procSymbols->resolve_addr(ip, &resolved_symbol, true)) {
         snprintf(buf, buf_size, "%s (%s)", resolved_symbol.demangle_name, resolved_symbol.module);
+        // let bcc take care of freeing memory allocated by __cxa_demangle()
+        bcc_symbol_free_demangle_name(&resolved_symbol);
         this->symbols.push_back(std::string(buf));
     // TODO: This function is very heavy. We should try to do some caching here, maybe in the
     //       underlying UPT function.
@@ -104,10 +107,13 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
         int status = 0;
         char* demangled = nullptr;
         demangled = abi::__cxa_demangle(buf, nullptr, nullptr, &status);
-        if (!status) {
-          this->symbols.push_back(std::string(demangled));
-        } else {
+        std::string demangled_symbol = status == 0 ? demangled : buf;
+        // make use of module lookup, which can succeed independently of symbol lookup
+        if (procSymbols && resolved_symbol.module) {
+          snprintf(buf, buf_size, "%s (%s)", demangled_symbol.c_str(), resolved_symbol.module);
           this->symbols.push_back(std::string(buf));
+        } else {
+          this->symbols.push_back(demangled_symbol);
         }
         free(demangled);
     } else {
