@@ -180,8 +180,15 @@ int NativeStackTrace::access_mem(unw_addr_space_t as, unw_word_t addr,
     return -UNW_EINVAL;
   }
 
+#if defined(__x86_64__)
   // Subtract 128 for x86-ABI red zone
-  const uintptr_t top_of_stack = NativeStackTrace::sp - 128;
+  const unsigned redzone = 128;
+#elif defined(__aarch64__)
+  const unsigned redzone = 0;
+#else
+#error unknown arch
+#endif
+  const uintptr_t top_of_stack = NativeStackTrace::sp - redzone;
   const uintptr_t stack_start = top_of_stack & ~(getpagesize() - 1);
   const uintptr_t stack_end = stack_start + NativeStackTrace::stack_len;
 
