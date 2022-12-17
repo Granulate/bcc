@@ -262,6 +262,7 @@ extern const struct struct_offsets kPy27OffsetConfig = {
         .f_localsplus = 376,
     },
     .PyCodeObject = {
+        .co_nlocals = 20,
         .co_filename = 80,
         .co_name = 88,
         .co_varnames = 56,
@@ -269,7 +270,7 @@ extern const struct struct_offsets kPy27OffsetConfig = {
     },
     .PyTupleObject = {
         .ob_item = 24
-    }
+    },
 };
 
 extern const struct struct_offsets kPy36OffsetConfig = {
@@ -357,8 +358,8 @@ extern const struct struct_offsets kPy38OffsetConfig = {
         .ob_type = 8
     },
     .String = {
-        .data = 48,
-        .size = -1,
+        .data = 48,                // offsetof(PyStringObject, ob_sval)
+        .size = 16,                // offsetof(PyVarObject, ob_size)
     },
     .PyTypeObject = {
         .tp_name = 24
@@ -373,7 +374,7 @@ extern const struct struct_offsets kPy38OffsetConfig = {
         .tstate_head = 8,
     },
     .PyRuntimeState = {
-        .interp_main = 32,
+        .interp_main = 40, // N/A
     },
     .PyFrameObject = {
         .f_back = 24,
@@ -382,10 +383,11 @@ extern const struct struct_offsets kPy38OffsetConfig = {
         .f_localsplus = 360,
     },
     .PyCodeObject = {
-        .co_filename = 96,
-        .co_name = 104,
-        .co_varnames = 64,
-        .co_firstlineno = 36,
+        .co_nlocals = 28,
+        .co_filename = 104,
+        .co_name = 112,
+        .co_varnames = 72,
+        .co_firstlineno = 40,
     },
     .PyTupleObject = {
         .ob_item = 24
