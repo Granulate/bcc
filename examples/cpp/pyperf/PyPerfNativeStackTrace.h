@@ -43,11 +43,14 @@ class NativeStackTrace {
   static uintptr_t sp;
   static ProcSymbolsCache procSymbolsCache;
 
-  static int access_reg(unw_addr_space_t as, unw_regnum_t regnum,
-                        unw_word_t *valp, int write, void *arg);
+  static int UPT_access_reg(unw_addr_space_t as, unw_regnum_t regnum,
+                            unw_word_t *valp, int write, void *arg);
+  static int UPT_access_mem(unw_addr_space_t as, unw_word_t addr,
+                            unw_word_t *valp, int write, void *arg);
+  static int UPT_access_fpreg(unw_addr_space_t as, unw_regnum_t reg, unw_fpreg_t *val,
+                              int write, void *arg);
+  static int UPT_resume(unw_addr_space_t as, unw_cursor_t *c, void *arg);
 
-  static int access_mem(unw_addr_space_t as, unw_word_t addr, unw_word_t *valp,
-                        int write, void *arg);
   static ProcSyms* get_proc_symbols(uint32_t pid);
 };
 
