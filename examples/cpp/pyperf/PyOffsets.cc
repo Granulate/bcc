@@ -277,8 +277,8 @@ extern const struct struct_offsets kPy36OffsetConfig = {
         .ob_type = 8
     },
     .String = {
-        .data = 48,
-        .size = 16,
+        .data = 48,                // offsetof(PyStringObject, ob_sval)
+        .size = 16,                // offsetof(PyVarObject, ob_size)
     },
     .PyTypeObject = {
         .tp_name = 24
@@ -317,8 +317,8 @@ extern const struct struct_offsets kPy37OffsetConfig = {
         .ob_type = 8
     },
     .String = {
-        .data = 48,
-        .size = -1,
+        .data = 48,                // offsetof(PyStringObject, ob_sval)
+        .size = 16,                // offsetof(PyVarObject, ob_size)
     },
     .PyTypeObject = {
         .tp_name = 24
@@ -397,8 +397,8 @@ extern const struct struct_offsets kPy310OffsetConfig = {
         .ob_type = 8
     },
     .String = {
-        .data = 48,
-        .size = -1,
+        .data = 48,                // offsetof(PyStringObject, ob_sval)
+        .size = 16,                // offsetof(PyVarObject, ob_size)
     },
     .PyTypeObject = {
         .tp_name = 24
@@ -413,25 +413,27 @@ extern const struct struct_offsets kPy310OffsetConfig = {
         .tstate_head = 8,
     },
     .PyRuntimeState = {
-        .interp_main = 32,
+        .interp_main = 40,
     },
     .PyFrameObject = {
         .f_back = 24,
         .f_code = 32,
-        .f_lineno = 108,
-        .f_localsplus = 360,
+        .f_lineno = 100,
+        .f_localsplus = 352,
     },
     .PyCodeObject = {
-        .co_filename = 96,
-        .co_name = 104,
-        .co_varnames = 64,
-        .co_firstlineno = 36,
+        .co_filename = 104,
+        .co_name = 112,
+        .co_varnames = 72,
+        .co_firstlineno = 40,
     },
     .PyTupleObject = {
         .ob_item = 24
     },
 };
 
+#else
+#error unknown arch
 #endif
 
 // List of mappings from Python 3 minor versions to offsets. `get_offsets` depends on this list
@@ -440,8 +442,7 @@ const std::vector<std::pair<version, struct_offsets>> python3Versions = {
     {{3,6,0}, kPy36OffsetConfig},
     {{3,7,0}, kPy37OffsetConfig},
     {{3,8,0}, kPy38OffsetConfig},
-    // TODO check on aarch64
-    // 3.9 is same as 3.8
+    // 3.9 is same as 3.8 (on both x86_64 and Aarch64)
     {{3,10,0}, kPy310OffsetConfig},
 };
 
