@@ -172,6 +172,7 @@ struct sample_state {
   uintptr_t constant_buffer_addr;
   uintptr_t interp_head;
   uintptr_t thread_state;
+  enum pthreads_impl pthreads_impl;
   struct struct_offsets offsets;
   uint32_t cur_cpu;
   uint32_t symbol_counter;
@@ -215,13 +216,13 @@ get_task_thread_id(struct task_struct const *task, enum pthreads_impl pthreads_i
   // For glibc, corresponds to THREAD_SELF in "tls.h" in glibc source.
   // For musl, see definition of `__pthread_self`.
 
-#ifdef __x86_64__
   int ret;
   uint64_t fsbase;
   // HACK: Usually BCC would translate a deref of the field into `read_kernel` for us, but it
   //       doesn't detect it due to the macro (because it transforms before preprocessing).
   bpf_probe_read_kernel(&fsbase, sizeof(fsbase), (u8*)task + FS_OFS);
 
+#ifdef __x86_64__
   switch (pthreads_impl) {
   case PTI_GLIBC:
     // 0x10 = offsetof(tcbhead_t, self)
@@ -238,16 +239,76 @@ get_task_thread_id(struct task_struct const *task, enum pthreads_impl pthreads_i
     // driver passed bad value
     return ERROR_INVALID_PTHREADS_IMPL;
   }
+#elif defined(__aarch64__)
+  switch (pthreads_impl) {
+  case PTI_GLIBC:
+    // TODO const bad
+    *thread_id = fsbase - 0x6f0;
+    ret = 0;
+    break;
+
+  case PTI_MUSL:
+    // TODO ensure really same as x86
+    // __pthread_self / __get_tp reads %fs:0x0
+    // which corresponds to the field "self" in struct pthread
+    ret = bpf_probe_read_user(thread_id, sizeof(*thread_id), (void *)fsbase);
+    break;
+
+  default:
+    // driver passed bad value
+    return ERROR_INVALID_PTHREADS_IMPL;
+  }
+#else
+#error "Unsupported platform"
+#endif // __x86_64__
+
+  bpf_trace_printk("fs: %llx libc: %llx: ret %llx\n", fsbase, pthreads_impl, ret);
 
   if (ret < 0) {
     return ERROR_BAD_FSBASE;
   }
 
   return ERROR_NONE;
+}
 
-#else  // __x86_64__
-#error "Unsupported platform"
-#endif // __x86_64__
+static __always_inline int compare_task_thread_id(uint64_t a, uint64_t b, enum pthreads_impl pthreads_impl) {
+#if defined(__x86_64__)
+  (void)pthreads_impl;
+  return a == b;
+#elif defined(__aarch64__)
+  switch (pthreads_impl) {
+  case PTI_GLIBC:
+    return (int64_t)(a - b) < 0x500;
+
+  case PTI_MUSL:
+    return a == b;
+  }
+#endif
+}
+
+static __always_inline int user_mode(struct pt_regs *regs) {
+  // ebpf doesn't allow direct access to regs (the ctx), so we need to copy it
+#if defined(__x86_64__)
+  int cs;
+  bpf_probe_read_kernel(&cs, sizeof(cs), &(regs->cs));
+  return cs & 3;
+#elif defined(__aarch64__)
+  u64 pstate;
+  bpf_probe_read_kernel(&pstate, sizeof(pstate), &(regs->pstate));
+  return (pstate & PSR_MODE_MASK) == PSR_MODE_EL0t;
+#endif
+}
+
+static __always_inline struct pt_regs *task_pt_regs_ptr(struct task_struct const *const task) {
+  unsigned long stack;
+  bpf_probe_read_kernel(&stack, sizeof(stack), (void*)((unsigned long)task + STACK_OFS));
+#if defined(__x86_64__)
+  // This is equivalent to `task_pt_regs(task)` for x86. Macros doesn't
+  // work properly on bcc, so we need to re-implement.
+  return (struct pt_regs *)(stack + THREAD_SIZE - TOP_OF_KERNEL_STACK_PADDING) - 1;
+#elif defined(__aarch64__)
+  return (struct pt_regs *)(stack + THREAD_SIZE) - 1;
+#endif
 }
 
 // this function is trivial, but we need to do map lookup in separate function,
@@ -309,37 +370,30 @@ on_event(struct pt_regs* ctx) {
     // Get raw native user stack
     struct pt_regs user_regs;
 
-    // ebpf doesn't allow direct access to ctx->cs, so we need to copy it
-    int cs;
-    bpf_probe_read_kernel(&cs, sizeof(cs), &(ctx->cs));
-
     // Are we in user mode?
-    if (cs & 3) {
+    if (user_mode(ctx)) {
       // Yes - use the registers context given to the BPF program
-      user_regs = *ctx;
+      bpf_probe_read_kernel(&user_regs, sizeof(user_regs), ctx);
+      // user_regs = *ctx;
     }
     else {
       // No - use the registers context of usermode, that is stored on the stack.
-
-      // The third argument is equivalent to `task_pt_regs(task)` for x86. Macros doesn't
-      // work properly on bcc, so we need to re-implement.
       bpf_probe_read_kernel(
           &user_regs, sizeof(user_regs),
-          // Note - BCC emits an implicit bpf_probe_read_kernel() here (for the deref of 'task').
-          // I don't like the implicitness (and it will be something we'll need to fix if we're ever
-          // to move from BCC). Meanwhile, I tried to change it to be explicit but the BPF assembly
-          // varies too much so I prefer to avoid this change now ;(
-          (struct pt_regs *)(*(unsigned long*)((unsigned long)task + STACK_OFS) + THREAD_SIZE -
-                            TOP_OF_KERNEL_STACK_PADDING) - 1);
+          task_pt_regs_ptr(task));
     }
 
+    event->user_stack_len = 0;
+#if defined(__x86_64__)
     event->user_sp = user_regs.sp;
     event->user_ip = user_regs.ip;
-    event->user_stack_len = 0;
-
     // Subtract 128 from sp for x86-ABI red zone
     uintptr_t top_of_stack = user_regs.sp - 128;
-
+#elif defined(__aarch64__)
+    event->user_sp = user_regs.sp;
+    event->user_ip = user_regs.pc;
+    uintptr_t top_of_stack = user_regs.sp;
+#endif
     // Copy one page at the time - if one fails we don't want to lose the others
     int i;
     #pragma unroll
@@ -368,9 +422,10 @@ on_event(struct pt_regs* ctx) {
 
       // Get PyThreadState of the thread that currently holds the GIL
       uintptr_t _PyThreadState_Current = 0;
-      bpf_probe_read_user(
+      int x = bpf_probe_read_user(
           &_PyThreadState_Current, sizeof(_PyThreadState_Current),
           (void*)pid_data->globals._PyThreadState_Current);
+      bpf_trace_printk("read addr %llx ret %d\n", (unsigned long)pid_data->globals._PyThreadState_Current, x);
       if (_PyThreadState_Current == 0) {
         // The GIL is released, we can only get native stacks
         // until it is held again.
@@ -400,6 +455,7 @@ on_event(struct pt_regs* ctx) {
   state->offsets = pid_data->offsets;
   state->interp_head = pid_data->interp;
   state->constant_buffer_addr = pid_data->globals.constant_buffer;
+  state->pthreads_impl = pid_data->pthreads_impl;
 
   // Read pointer to first PyThreadState in thread states list:
   bpf_probe_read_user(
@@ -437,7 +493,7 @@ get_thread_state(struct pt_regs *ctx) {
   for (int i = 0; i < THREAD_STATES_PER_PROG; ++i) {
     // Read the PyThreadState::thread_id to which this PyThreadState belongs:
     thread_id = read_tstate_thread_id(state->thread_state, &state->offsets);
-    if (thread_id == state->current_thread_id) {
+    if (compare_task_thread_id(thread_id, state->current_thread_id, state->pthreads_impl)) {
       goto found;
     }
     else if (unlikely(thread_id == BAD_THREAD_ID)) {

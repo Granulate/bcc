@@ -51,10 +51,14 @@ typedef int bool;
 
 #define NULL ((void*)0)
 #define ENOSPC 28
+
+#if defined(__x86_64__)
+
 #define PAGE_SIZE 4096
 #define PAGE_MASK (~(PAGE_SIZE-1))
 #define THREAD_SIZE_ORDER 2
 #define THREAD_SIZE (PAGE_SIZE << THREAD_SIZE_ORDER)
+#define TOP_OF_KERNEL_STACK_PADDING 0
 
 struct pt_regs {
 /*
@@ -90,6 +94,59 @@ struct pt_regs {
     unsigned long ss;
 /* top of stack page */
 };
+
+#elif defined(__aarch64__)
+
+#define PSR_MODE_EL0t   0x00000000
+#define PSR_MODE_MASK   0x0000000f
+
+#define PAGE_SIZE 4096 // on all systems I saw, CONFIG_ARM64_PAGE_SHIFT=12
+#define PAGE_MASK (~(PAGE_SIZE-1))
+
+#define KASAN_THREAD_SHIFT  0
+#define MIN_THREAD_SHIFT    (14 + KASAN_THREAD_SHIFT)
+// if CONFIG_VMAP_STACK is enabled & PAGE_SHIFT is 12, then this path gets selected:
+#define THREAD_SHIFT        MIN_THREAD_SHIFT
+#define THREAD_SIZE  (1UL << THREAD_SHIFT)
+
+struct user_pt_regs {
+    __u64       regs[31];
+    __u64       sp;
+    __u64       pc;
+    __u64       pstate;
+};
+
+// this changes!
+// this copy is from 5.16.0
+struct pt_regs {
+    union {
+        struct user_pt_regs user_regs;
+        struct {
+            u64 regs[31];
+            u64 sp;
+            u64 pc;
+            u64 pstate;
+        };
+    };
+    u64 orig_x0;
+#ifdef __AARCH64EB__
+    u32 unused2;
+    s32 syscallno;
+#else
+    s32 syscallno;
+    u32 unused2;
+#endif
+    u64 sdei_ttbr1;
+    /* Only valid when ARM64_HAS_IRQ_PRIO_MASKING is enabled. */
+    u64 pmr_save;
+    u64 stackframe[2];
+
+    /* Only valid for some EL1 exceptions. */
+    u64 lockdep_hardirqs;
+    u64 exit_rcu;
+};
+
+#endif
 
 # ifndef likely
 #  define likely(x) __builtin_expect(x, 1)
@@ -311,8 +368,6 @@ unsigned long __rounddown_pow_of_two(unsigned long n)
                    ) :      \
     __roundup_pow_of_two(n)         \
  )
-
-#define TOP_OF_KERNEL_STACK_PADDING 0
 
 // END COPIED FROM LINUX
 #endif // _UAPI__LINUX_LINUX_H__

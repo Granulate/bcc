@@ -29,6 +29,7 @@ There are a couple of exceptions:
 3. PyThreadState.thread - this field's name is "thread_id" in some Python versions.
 */
 
+#if defined(__x86_64__)
 extern const struct struct_offsets kPy27OffsetConfig = {
     .PyObject = {
         .ob_type = 8
@@ -229,13 +230,219 @@ extern const struct struct_offsets kPy310OffsetConfig = {
     },
 };
 
+#elif defined(__aarch64__)
+
+extern const struct struct_offsets kPy27OffsetConfig = {
+    .PyObject = {
+        .ob_type = 8
+    },
+    .String = {
+        .data = 36,                // offsetof(PyStringObject, ob_sval)
+        .size = 16,                // offsetof(PyVarObject, ob_size)
+    },
+    .PyTypeObject = {
+        .tp_name = 24
+    },
+    .PyThreadState = {
+        .next = 0,
+        .interp = 8,
+        .frame = 16,
+        .thread = 144,
+    },
+    .PyInterpreterState = {
+        .tstate_head = 8,
+    },
+    .PyRuntimeState = {
+        .interp_main = -1, // N/A
+    },
+    .PyFrameObject = {
+        .f_back = 24,
+        .f_code = 32,
+        .f_lineno = 124,
+        .f_localsplus = 376,
+    },
+    .PyCodeObject = {
+        .co_filename = 80,
+        .co_name = 88,
+        .co_varnames = 56,
+        .co_firstlineno = 96,
+    },
+    .PyTupleObject = {
+        .ob_item = 24
+    },
+};
+
+extern const struct struct_offsets kPy36OffsetConfig = {
+    .PyObject = {
+        .ob_type = 8
+    },
+    .String = {
+        .data = 48,                // offsetof(PyStringObject, ob_sval)
+        .size = 16,                // offsetof(PyVarObject, ob_size)
+    },
+    .PyTypeObject = {
+        .tp_name = 24
+    },
+    .PyThreadState = {
+        .next = 8,
+        .interp = 16,
+        .frame = 24,
+        .thread = 152,
+    },
+    .PyInterpreterState = {
+        .tstate_head = 8,
+    },
+    .PyRuntimeState = {
+        .interp_main = 32,
+    },
+    .PyFrameObject = {
+        .f_back = 24,
+        .f_code = 32,
+        .f_lineno = 124,
+        .f_localsplus = 376,
+    },
+    .PyCodeObject = {
+        .co_filename = 96,
+        .co_name = 104,
+        .co_varnames = 64,
+        .co_firstlineno = 36,
+    },
+    .PyTupleObject = {
+        .ob_item = 24
+    },
+};
+
+extern const struct struct_offsets kPy37OffsetConfig = {
+    .PyObject = {
+        .ob_type = 8
+    },
+    .String = {
+        .data = 48,                // offsetof(PyStringObject, ob_sval)
+        .size = 16,                // offsetof(PyVarObject, ob_size)
+    },
+    .PyTypeObject = {
+        .tp_name = 24
+    },
+    .PyThreadState = {
+        .next = 8,
+        .interp = 16,
+        .frame = 24,
+        .thread = 176,
+    },
+    .PyInterpreterState = {
+        .tstate_head = 8,
+    },
+    .PyRuntimeState = {
+        .interp_main = 32,
+    },
+    .PyFrameObject = {
+        .f_back = 24,
+        .f_code = 32,
+        .f_lineno = 108,
+        .f_localsplus = 360,
+    },
+    .PyCodeObject = {
+        .co_filename = 96,
+        .co_name = 104,
+        .co_varnames = 64,
+        .co_firstlineno = 36,
+    },
+    .PyTupleObject = {
+        .ob_item = 24
+    },
+};
+
+extern const struct struct_offsets kPy38OffsetConfig = {
+    .PyObject = {
+        .ob_type = 8
+    },
+    .String = {
+        .data = 48,                // offsetof(PyStringObject, ob_sval)
+        .size = 16,                // offsetof(PyVarObject, ob_size)
+    },
+    .PyTypeObject = {
+        .tp_name = 24
+    },
+    .PyThreadState = {
+        .next = 8,
+        .interp = 16,
+        .frame = 24,
+        .thread = 176,
+    },
+    .PyInterpreterState = {
+        .tstate_head = 8,
+    },
+    .PyRuntimeState = {
+        .interp_main = 40, // N/A
+    },
+    .PyFrameObject = {
+        .f_back = 24,
+        .f_code = 32,
+        .f_lineno = 108,
+        .f_localsplus = 360,
+    },
+    .PyCodeObject = {
+        .co_filename = 104,
+        .co_name = 112,
+        .co_varnames = 72,
+        .co_firstlineno = 40,
+    },
+    .PyTupleObject = {
+        .ob_item = 24
+    },
+};
+
+extern const struct struct_offsets kPy310OffsetConfig = {
+    .PyObject = {
+        .ob_type = 8
+    },
+    .String = {
+        .data = 48,                // offsetof(PyStringObject, ob_sval)
+        .size = 16,                // offsetof(PyVarObject, ob_size)
+    },
+    .PyTypeObject = {
+        .tp_name = 24
+    },
+    .PyThreadState = {
+        .next = 8,
+        .interp = 16,
+        .frame = 24,
+        .thread = 176,
+    },
+    .PyInterpreterState = {
+        .tstate_head = 8,
+    },
+    .PyRuntimeState = {
+        .interp_main = 40,
+    },
+    .PyFrameObject = {
+        .f_back = 24,
+        .f_code = 32,
+        .f_lineno = 100,
+        .f_localsplus = 352,
+    },
+    .PyCodeObject = {
+        .co_filename = 104,
+        .co_name = 112,
+        .co_varnames = 72,
+        .co_firstlineno = 40,
+    },
+    .PyTupleObject = {
+        .ob_item = 24
+    },
+};
+
+#else
+#error unknown arch
+#endif
+
 // List of mappings from Python 3 minor versions to offsets. `get_offsets` depends on this list
 // being sorted in ascending order when it searches through it.
 const std::vector<std::pair<version, struct_offsets>> python3Versions = {
     {{3,6,0}, kPy36OffsetConfig},
     {{3,7,0}, kPy37OffsetConfig},
     {{3,8,0}, kPy38OffsetConfig},
-    // 3.9 is same as 3.8
+    // 3.9 is same as 3.8 (on both x86_64 and Aarch64)
     {{3,10,0}, kPy310OffsetConfig},
 };
 
