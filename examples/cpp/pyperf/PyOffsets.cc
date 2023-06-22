@@ -194,8 +194,9 @@ extern const struct struct_offsets kPy310OffsetConfig = {
         .ob_type = 8
     },
     .String = {
-        .data = 48,                // offsetof(PyStringObject, ob_sval)
-        .size = -1,                // offsetof(PyVarObject, ob_size)
+        // see https://github.com/python/cpython/blob/3.10/Include/cpython/unicodeobject.h#L82-L84
+        .data = 48, // sizeof(PyASCIIObject), which is an offset to string data
+        .size = -1, // offsetof(PyVarObject, ob_size)
     },
     .PyTypeObject = {
         .tp_name = 24
@@ -229,6 +230,51 @@ extern const struct struct_offsets kPy310OffsetConfig = {
     },
 };
 
+extern const struct struct_offsets kPy311OffsetConfig = {
+    .PyObject = {
+        .ob_type = 8
+    },
+    .String = {
+        // see https://github.com/python/cpython/blob/3.11/Include/cpython/unicodeobject.h#L69-L71
+        .data = 48, // sizeof(PyASCIIObject), which is an offset to string data
+        .size = -1,
+    },
+    .PyTypeObject = {
+        .tp_name = 24
+    },
+    .PyThreadState = {
+        .next = 8,
+        .interp = 16,
+        .frame = -1, // no direct pointer to PyFrameObject since Python 3.11
+        .thread = 152, // offsetof(PyThreadState,thread_id),
+        .cframe = 56, // pointer to intermediate structure, PyCFrame
+    },
+    .PyCFrame = {
+        .current_frame = 8
+    },
+    .PyInterpreterState = {
+        .tstate_head = 16, // offsetof(PyInterpreterState, threads.head),
+    },
+    .PyRuntimeState = {
+        .interp_main = 48, // offsetof(_PyRuntimeState, interpreters.main),
+    },
+    .PyFrameObject = { // in Python 3.11 these fields are in PyInterpreterFrame
+        .f_back = 48, // offsetof(_PyInterpreterFrame, previous),
+        .f_code = 32, // offsetof(_PyInterpreterFrame, f_code),
+        .f_lineno = -1, // N/A
+        .f_localsplus = 72, // offsetof(_PyInterpreterFrame, localsplus),
+    },
+    .PyCodeObject = {
+        .co_filename = 112,
+        .co_name = 120,
+        .co_varnames = 96, // offsetof(PyCodeObject, co_localsplusnames),
+        .co_firstlineno = 72,
+    },
+    .PyTupleObject = {
+        .ob_item = 24
+    },
+};
+
 // List of mappings from Python 3 minor versions to offsets. `get_offsets` depends on this list
 // being sorted in ascending order when it searches through it.
 const std::vector<std::pair<version, struct_offsets>> python3Versions = {
@@ -237,6 +283,7 @@ const std::vector<std::pair<version, struct_offsets>> python3Versions = {
     {{3,8,0}, kPy38OffsetConfig},
     // 3.9 is same as 3.8
     {{3,10,0}, kPy310OffsetConfig},
+    {{3,11,0}, kPy311OffsetConfig},
 };
 
 const struct_offsets& get_offsets(version& version) {

@@ -91,6 +91,7 @@ enum error_code {
   ERROR_THREAD_STATE_HEAD_NULL = 10,
   ERROR_BAD_THREAD_STATE = 11,
   ERROR_CALL_FAILED = 12,
+  ERROR_TSTATE_CFRAME_IS_NULL = 13,
 };
 
 /**
@@ -137,7 +138,11 @@ struct struct_offsets {
     int64_t interp;
     int64_t frame;
     int64_t thread;
+    int64_t cframe;
   } PyThreadState;
+  struct { // since Python 3.11 this structure holds pointer to target FrameObject
+    int64_t current_frame;
+  } PyCFrame;
   struct {
     int64_t tstate_head;
   } PyInterpreterState;

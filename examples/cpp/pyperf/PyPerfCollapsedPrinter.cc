@@ -80,6 +80,7 @@ const char *PyPerfCollapsedPrinter::sample_strerror(enum error_code error) {
     case ERROR_THREAD_STATE_HEAD_NULL: return "ERROR_THREAD_STATE_HEAD_NULL";
     case ERROR_BAD_THREAD_STATE: return "ERROR_BAD_THREAD_STATE";
     case ERROR_CALL_FAILED: return "ERROR_CALL_FAILED";
+    case ERROR_TSTATE_CFRAME_IS_NULL: return "ERROR_TSTATE_CFRAME_IS_NULL";
     default: return "ERROR_UNKNOWN_CODE";
   }
 }

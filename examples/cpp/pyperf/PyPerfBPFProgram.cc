@@ -47,6 +47,7 @@ enum error_code {
   ERROR_THREAD_STATE_HEAD_NULL = 10,
   ERROR_BAD_THREAD_STATE = 11,
   ERROR_CALL_FAILED = 12,
+  ERROR_TSTATE_CFRAME_IS_NULL = 13,
 };
 
 /**
@@ -85,7 +86,11 @@ struct struct_offsets {
     int64_t interp;
     int64_t frame;
     int64_t thread;
+    int64_t cframe;
   } PyThreadState;
+  struct {
+    int64_t current_frame;
+  } PyCFrame;
   struct {
     int64_t tstate_head;
   } PyInterpreterState;
@@ -464,9 +469,26 @@ get_thread_state(struct pt_regs *ctx) {
 
 found:
   // Get pointer to top frame from PyThreadState
-  bpf_probe_read_user(
+  if (state->offsets.PyThreadState.frame > -1) {
+    // For Python <= 3.10 get frame pointer directly from PyThreadState
+    bpf_probe_read_user(
       &state->frame_ptr, sizeof(state->frame_ptr),
       (void *)(state->thread_state + state->offsets.PyThreadState.frame));
+  } else {
+    // In Python 3.11+ PyFrameObject fields of interest were mostly moved to PyInterpreterFrame (but we refer it here
+    // as "frame"); also, we need to get pointer indirectly through PyCFrame structure
+    uintptr_t cframe;
+    bpf_probe_read_user(
+      &cframe, sizeof(cframe),
+      (void *)(state->thread_state + state->offsets.PyThreadState.cframe));
+    if (cframe == 0) {
+      event->error_code = ERROR_TSTATE_CFRAME_IS_NULL;
+      goto submit;
+    }
+    bpf_probe_read_user(
+      &state->frame_ptr, sizeof(state->frame_ptr),
+      (void *)(cframe + state->offsets.PyCFrame.current_frame));
+  }
   if (state->frame_ptr == 0) {
     event->error_code = ERROR_EMPTY_STACK;
     goto submit;
