@@ -53,9 +53,17 @@ NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
     return;
   }
 
-  unw_accessors_t my_accessors = _UPT_accessors;
-  my_accessors.access_mem = NativeStackTrace::access_mem;
-  my_accessors.access_reg = NativeStackTrace::access_reg;
+  // We hook some of the accessors to control the level of access libunwind gets of the target processes.
+  unw_accessors_t my_accessors = {
+    .find_proc_info = _UPT_find_proc_info,
+    .put_unwind_info = _UPT_put_unwind_info,
+    .get_dyn_info_list_addr = _UPT_get_dyn_info_list_addr,
+    .access_mem = NativeStackTrace::UPT_access_mem,
+    .access_reg = NativeStackTrace::UPT_access_reg,
+    .access_fpreg = NativeStackTrace::UPT_access_fpreg,
+    .resume = NativeStackTrace::UPT_resume,
+    .get_proc_name = _UPT_get_proc_name,
+  };
   ProcSyms* procSymbols = nullptr;
   // reserve memory for platform-defined path limit AND the symbol
   const size_t buf_size = SymbolMaxSize + PATH_MAX + sizeof("() ");
@@ -147,8 +155,8 @@ out:
   }
 }
 
-int NativeStackTrace::access_reg(unw_addr_space_t as, unw_regnum_t regnum,
-                                 unw_word_t *valp, int write, void *arg) {
+int NativeStackTrace::UPT_access_reg(unw_addr_space_t as, unw_regnum_t regnum,
+                                     unw_word_t *valp, int write, void *arg) {
   if (regnum == UNW_REG_SP) {
     if (write) {
       logInfo(2, "Libunwind attempts to write to SP\n");
@@ -173,8 +181,8 @@ int NativeStackTrace::access_reg(unw_addr_space_t as, unw_regnum_t regnum,
   }
 }
 
-int NativeStackTrace::access_mem(unw_addr_space_t as, unw_word_t addr,
-                                 unw_word_t *valp, int write, void *arg) {
+int NativeStackTrace::UPT_access_mem(unw_addr_space_t as, unw_word_t addr,
+                                     unw_word_t *valp, int write, void *arg) {
   if (write) {
     logInfo(3, "Libunwind unexpected mem write attempt\n");
     return -UNW_EINVAL;
@@ -220,6 +228,17 @@ int NativeStackTrace::access_mem(unw_addr_space_t as, unw_word_t addr,
   }
 
   logInfo(2, "Write to 0x%lx using process_vm_readv failed with %d (%s)\n", addr, errno, strerror(errno));
+  return -UNW_EINVAL;
+}
+
+int NativeStackTrace::UPT_access_fpreg(unw_addr_space_t as, unw_regnum_t reg, unw_fpreg_t *val,
+                                       int write, void *arg) {
+  logInfo(3, "Libunwind unexpected UPT_access_fpreg() attempt\n");
+  return -UNW_EINVAL;
+}
+
+int NativeStackTrace::UPT_resume(unw_addr_space_t as, unw_cursor_t *c, void *arg) {
+  logInfo(3, "Libunwind unexpected UPT_resume() attempt\n");
   return -UNW_EINVAL;
 }
 
