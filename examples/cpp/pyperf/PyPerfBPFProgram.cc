@@ -637,7 +637,7 @@ read_symbol_names(
   void* pystr_ptr;
   // read PyCodeObject's filename into symbol
   result |= bpf_probe_read_user(&pystr_ptr, sizeof(void*), code_ptr + offsets->PyCodeObject.co_filename);
-    result |= bpf_probe_read_user_str(&symbol->file, sizeof(symbol->file), pystr_ptr + offsets->String.data);
+  result |= bpf_probe_read_user_str(&symbol->file, sizeof(symbol->file), pystr_ptr + offsets->String.data);
   if (result < 0) {
     return result;
   }
@@ -707,7 +707,6 @@ int read_python_stack(struct pt_regs* ctx) {
     bpf_probe_read_user(
         &owner, sizeof(owner),
         cur_frame + state->offsets.PyFrameObject.owner);
-    bpf_trace_printk("owner %d",owner);
     if (owner == FRAME_OWNED_BY_THREAD ||
                    owner == FRAME_OWNED_BY_GENERATOR ||
                    owner == FRAME_OWNED_BY_FRAME_OBJECT){
@@ -727,7 +726,9 @@ int read_python_stack(struct pt_regs* ctx) {
       }
     } else if (owner != FRAME_OWNED_BY_CSTACK) {
       // This means frame ownership is unknown. Something is off.
-      event->stack[event->stack_len++] = -1;
+      if (event->stack_len < STACK_MAX_LEN) {
+        event->stack[event->stack_len++] = -1 * owner;
+      }
     } // If it's CSTACK we just skip.
     
 
