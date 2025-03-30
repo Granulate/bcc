@@ -703,13 +703,15 @@ int read_python_stack(struct pt_regs* ctx) {
   for (int i = 0; i < PYTHON_STACK_FRAMES_PER_PROG; i++) {
     cur_frame = state->frame_ptr;
 
-    char owner;
-    bpf_probe_read_user(
+    char owner = FRAME_OWNED_BY_THREAD; // If owner not relevant for distro, assume frame good.
+    if (state->offsets.PyFrameObject.owner != -1) {
+      bpf_probe_read_user(
         &owner, sizeof(owner),
         cur_frame + state->offsets.PyFrameObject.owner);
+    }
     if (owner == FRAME_OWNED_BY_THREAD ||
-                   owner == FRAME_OWNED_BY_GENERATOR ||
-                   owner == FRAME_OWNED_BY_FRAME_OBJECT){
+        owner == FRAME_OWNED_BY_GENERATOR ||
+        owner == FRAME_OWNED_BY_FRAME_OBJECT) {      
       // read PyCodeObject first, if that fails, then no point reading next frame
       bpf_probe_read_user(
           &cur_code_ptr, sizeof(cur_code_ptr),
