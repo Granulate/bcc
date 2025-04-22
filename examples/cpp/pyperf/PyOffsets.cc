@@ -189,6 +189,8 @@ extern const struct struct_offsets kPy38OffsetConfig = {
     }
 };
 
+static const struct struct_offsets kPy39OffsetConfig = kPy38OffsetConfig;
+
 extern const struct struct_offsets kPy310OffsetConfig = {
     .PyObject = {
         .ob_type = 8
@@ -275,15 +277,69 @@ extern const struct struct_offsets kPy311OffsetConfig = {
     },
 };
 
+static const struct struct_offsets kPy312OffsetConfig = kPy311OffsetConfig;
+
+/* 3.13:  _PyCFrame was removed and PyThreadState.frame is back.        */
+static const struct struct_offsets kPy313OffsetConfig = {
+    /* PyObject / String / PyTypeObject */
+    .PyObject = { 
+        .ob_type = 8 
+    },
+    .String = { 
+        .data = 48, 
+        .size = -1 
+    },
+    .PyTypeObject = { 
+        .tp_name = 24 
+    },
+    /* PyThreadState (frame restored, no cframe) */
+    .PyThreadState = { 
+        .next = 8, 
+        .interp = 16,
+        .frame = 24,
+        .thread = 152,
+        .cframe = -1 },
+    /* _PyCFrame is gone */
+    .PyCFrame      = { 
+        .current_frame = -1 
+    },
+    /* Interpreter / runtime */
+    .PyInterpreterState = { 
+        .tstate_head = 16 
+    },
+    .PyRuntimeState = {
+        .interp_main = 48
+    },
+    /* _PyInterpreterFrame “virtual” frame */
+    .PyFrameObject = { 
+        .f_back = 48,
+        .f_code = 32,
+        .f_lineno = -1,
+        .f_localsplus = 72
+    },
+    /* PyCodeObject offsets unchanged since 3.11 */
+    .PyCodeObject = {
+        .co_filename = 112,
+        .co_name = 120,
+        .co_varnames = 96,
+        .co_firstlineno = 72
+    },
+    .PyTupleObject = {
+        .ob_item = 24
+    },
+};
+
 // List of mappings from Python 3 minor versions to offsets. `get_offsets` depends on this list
 // being sorted in ascending order when it searches through it.
 const std::vector<std::pair<version, struct_offsets>> python3Versions = {
     {{3,6,0}, kPy36OffsetConfig},
     {{3,7,0}, kPy37OffsetConfig},
     {{3,8,0}, kPy38OffsetConfig},
-    // 3.9 is same as 3.8
+    {{3,9,0}, kPy39OffsetConfig},
     {{3,10,0}, kPy310OffsetConfig},
     {{3,11,0}, kPy311OffsetConfig},
+    {{3,12,0}, kPy312OffsetConfig},
+    {{3,13,0}, kPy313OffsetConfig},
 };
 
 const struct_offsets& get_offsets(version& version) {
