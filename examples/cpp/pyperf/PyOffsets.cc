@@ -297,7 +297,7 @@ extern const struct struct_offsets kPy312OffsetConfig = {
         .cframe = 56, // pointer to intermediate structure, PyCFrame
     },
     .PyCFrame = {
-        .current_frame = 8
+        .current_frame = 0
     },
     .PyInterpreterState = {
         .tstate_head = 16, // offsetof(PyInterpreterState, threads.head),
@@ -306,8 +306,8 @@ extern const struct struct_offsets kPy312OffsetConfig = {
         .interp_main = 48, // offsetof(_PyRuntimeState, interpreters.main),
     },
     .PyFrameObject = { // in Python 3.11 these fields are in PyInterpreterFrame
-        .f_back = 48, // offsetof(_PyInterpreterFrame, previous),
-        .f_code = 32, // offsetof(_PyInterpreterFrame, f_code),
+        .f_back = 8, // offsetof(_PyInterpreterFrame, previous),
+        .f_code = 0, // offsetof(_PyInterpreterFrame, f_code),
         .f_lineno = -1, // N/A
         .f_localsplus = 72, // offsetof(_PyInterpreterFrame, localsplus),
     },
@@ -315,7 +315,7 @@ extern const struct struct_offsets kPy312OffsetConfig = {
         .co_filename = 112,
         .co_name = 120,
         .co_varnames = 96, // offsetof(PyCodeObject, co_localsplusnames),
-        .co_firstlineno = 72,
+        .co_firstlineno = 68,
     },
     .PyTupleObject = {
         .ob_item = 24
@@ -355,8 +355,8 @@ static const struct struct_offsets kPy313OffsetConfig = {
     },
     /* _PyInterpreterFrame “virtual” frame */
     .PyFrameObject = { 
-        .f_back = 48,
-        .f_code = 32,
+        .f_back = 8,
+        .f_code = 0,
         .f_lineno = -1,
         .f_localsplus = 72
     },
@@ -365,7 +365,7 @@ static const struct struct_offsets kPy313OffsetConfig = {
         .co_filename = 112,
         .co_name = 120,
         .co_varnames = 96,
-        .co_firstlineno = 72
+        .co_firstlineno = 68
     },
     .PyTupleObject = {
         .ob_item = 24
