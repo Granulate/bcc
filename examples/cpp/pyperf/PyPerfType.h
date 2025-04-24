@@ -154,6 +154,7 @@ struct struct_offsets {
     int64_t f_code;
     int64_t f_lineno;
     int64_t f_localsplus;
+    int64_t owner;
   } PyFrameObject;
   struct {
     int64_t co_filename;

@@ -57,6 +57,7 @@ extern const struct struct_offsets kPy27OffsetConfig = {
         .f_code = 32,
         .f_lineno = 124,
         .f_localsplus = 376,
+        .owner = -1,
     },
     .PyCodeObject = {
         .co_filename = 80,
@@ -97,6 +98,7 @@ extern const struct struct_offsets kPy36OffsetConfig = {
         .f_code = 32,
         .f_lineno = 124,
         .f_localsplus = 376,
+        .owner = -1,
     },
     .PyCodeObject = {
         .co_filename = 96,
@@ -137,6 +139,7 @@ extern const struct struct_offsets kPy37OffsetConfig = {
         .f_code = 32,
         .f_lineno = 108,
         .f_localsplus = 360,
+        .owner = -1,
     },
     .PyCodeObject = {
         .co_filename = 96,
@@ -177,6 +180,7 @@ extern const struct struct_offsets kPy38OffsetConfig = {
         .f_code = 32,
         .f_lineno = 108,
         .f_localsplus = 360,
+        .owner = -1,
     },
     .PyCodeObject = {
         .co_filename = 104,
@@ -220,6 +224,7 @@ extern const struct struct_offsets kPy310OffsetConfig = {
         .f_code = 32,
         .f_lineno = 100,
         .f_localsplus = 352,
+        .owner = -1,
     },
     .PyCodeObject = {
         .co_filename = 104,
@@ -239,7 +244,7 @@ extern const struct struct_offsets kPy311OffsetConfig = {
     .String = {
         // see https://github.com/python/cpython/blob/3.11/Include/cpython/unicodeobject.h#L69-L71
         .data = 48, // sizeof(PyASCIIObject), which is an offset to string data
-        .size = -1,
+        .size = 16,
     },
     .PyTypeObject = {
         .tp_name = 24
@@ -265,6 +270,7 @@ extern const struct struct_offsets kPy311OffsetConfig = {
         .f_code = 32, // offsetof(_PyInterpreterFrame, f_code),
         .f_lineno = -1, // N/A
         .f_localsplus = 72, // offsetof(_PyInterpreterFrame, localsplus),
+        .owner = 69,
     },
     .PyCodeObject = {
         .co_filename = 112,
@@ -283,8 +289,8 @@ extern const struct struct_offsets kPy312OffsetConfig = {
     },
     .String = {
         // see https://github.com/python/cpython/blob/3.11/Include/cpython/unicodeobject.h#L69-L71
-        .data = 48, // sizeof(PyASCIIObject), which is an offset to string data
-        .size = -1,
+        .data = 40, // sizeof(PyASCIIObject), which is an offset to string data
+        .size = 16,
     },
     .PyTypeObject = {
         .tp_name = 24
@@ -300,16 +306,17 @@ extern const struct struct_offsets kPy312OffsetConfig = {
         .current_frame = 0
     },
     .PyInterpreterState = {
-        .tstate_head = 16, // offsetof(PyInterpreterState, threads.head),
+        .tstate_head = 64 + 8, // offsetof(PyInterpreterState, threads.head),
     },
     .PyRuntimeState = {
-        .interp_main = 48, // offsetof(_PyRuntimeState, interpreters.main),
+        .interp_main = 32 + 8 //48, // offsetof(_PyRuntimeState, interpreters.main),
     },
     .PyFrameObject = { // in Python 3.11 these fields are in PyInterpreterFrame
         .f_back = 8, // offsetof(_PyInterpreterFrame, previous),
         .f_code = 0, // offsetof(_PyInterpreterFrame, f_code),
         .f_lineno = -1, // N/A
         .f_localsplus = 72, // offsetof(_PyInterpreterFrame, localsplus),
+        .owner = 70,
     },
     .PyCodeObject = {
         .co_filename = 112,
@@ -329,8 +336,8 @@ static const struct struct_offsets kPy313OffsetConfig = {
         .ob_type = 8 
     },
     .String = { 
-        .data = 48, 
-        .size = -1 
+        .data = 40, 
+        .size = 16 
     },
     .PyTypeObject = { 
         .tp_name = 24 
@@ -348,17 +355,18 @@ static const struct struct_offsets kPy313OffsetConfig = {
     },
     /* Interpreter / runtime */
     .PyInterpreterState = { 
-        .tstate_head = 16 
+        .tstate_head = 7344 
     },
     .PyRuntimeState = {
-        .interp_main = 48
+        .interp_main = 640
     },
     /* _PyInterpreterFrame “virtual” frame */
     .PyFrameObject = { 
         .f_back = 8,
         .f_code = 0,
         .f_lineno = -1,
-        .f_localsplus = 72
+        .f_localsplus = 72,
+        .owner = 70,
     },
     /* PyCodeObject offsets unchanged since 3.11 */
     .PyCodeObject = {
