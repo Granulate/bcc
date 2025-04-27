@@ -552,15 +552,10 @@ get_first_arg_name(
   //
   //   ((PyTupleObject*)$frame->f_code->co_varnames)->ob_item[0]
   //
-  int var_count;
-  result |= bpf_probe_read_user(&var_count, sizeof(var_count), code_ptr + 72); // co_nlocalsplus
-  
   void* args_ptr;
-  if (result == 0 && var_count > 0) {
-    result |= bpf_probe_read_user(&args_ptr, sizeof(void*), code_ptr + offsets->PyCodeObject.co_varnames);
-    result |= bpf_probe_read_user(&ob_size, sizeof(ob_size), args_ptr + 16); // PyVarObject.ob_size has always been 16
-  }
-
+  result |= bpf_probe_read_user(&args_ptr, sizeof(void*), code_ptr + offsets->PyCodeObject.co_varnames);
+  result |= bpf_probe_read_user(&ob_size, sizeof(ob_size), args_ptr + 16); // PyVarObject.ob_size has always been 16
+  
   if (result == 0 && ob_size > 0) {
     result |= bpf_probe_read_user(&args_ptr, sizeof(void*), args_ptr + offsets->PyTupleObject.ob_item);
     result |= bpf_probe_read_user_str(argname, maxlen, args_ptr + offsets->String.data);
