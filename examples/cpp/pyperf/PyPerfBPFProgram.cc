@@ -102,6 +102,7 @@ struct struct_offsets {
     int64_t f_code;
     int64_t f_lineno;
     int64_t f_localsplus;
+    int64_t owner;
   } PyFrameObject;
   struct {
     int64_t co_filename;
@@ -167,6 +168,7 @@ struct event {
   int32_t stack[STACK_MAX_LEN];
   uintptr_t user_ip;
   uintptr_t user_sp;
+  uintptr_t user_bp;
   uint32_t user_stack_len;
   uint8_t raw_user_stack[__USER_STACKS_PAGES__ * PAGE_SIZE];
 #define FRAME_CODE_IS_NULL 0x80000001
@@ -198,6 +200,10 @@ struct sample_state {
 #define CPU_BITS 10
 #define COUNTER_BITS (31 - CPU_BITS)
 #define MAX_SYMBOLS (1 << COUNTER_BITS)
+#define FRAME_OWNED_BY_THREAD 0
+#define FRAME_OWNED_BY_GENERATOR 1
+#define FRAME_OWNED_BY_FRAME_OBJECT 2
+#define FRAME_OWNED_BY_CSTACK 3
 BPF_HASH(symbols, struct symbol, int32_t, __SYMBOLS_SIZE__);
 
 // Table of processes currently being profiled.
@@ -340,6 +346,7 @@ on_event(struct pt_regs* ctx) {
 
     event->user_sp = user_regs.sp;
     event->user_ip = user_regs.ip;
+    event->user_bp = user_regs.bp;
     event->user_stack_len = 0;
 
     // Subtract 128 from sp for x86-ABI red zone
@@ -470,12 +477,12 @@ get_thread_state(struct pt_regs *ctx) {
 found:
   // Get pointer to top frame from PyThreadState
   if (state->offsets.PyThreadState.frame > -1) {
-    // For Python <= 3.10 get frame pointer directly from PyThreadState
+    // For Python <= 3.10, >=3.13 get frame pointer directly from PyThreadState
     bpf_probe_read_user(
       &state->frame_ptr, sizeof(state->frame_ptr),
       (void *)(state->thread_state + state->offsets.PyThreadState.frame));
   } else {
-    // In Python 3.11+ PyFrameObject fields of interest were mostly moved to PyInterpreterFrame (but we refer it here
+    // In Python 3.11, 3.12 PyFrameObject fields of interest were mostly moved to PyInterpreterFrame (but we refer it here
     // as "frame"); also, we need to get pointer indirectly through PyCFrame structure
     uintptr_t cframe;
     bpf_probe_read_user(
@@ -542,14 +549,15 @@ get_first_arg_name(
   char *argname,
   size_t maxlen) {
   int result = 0;
-  ssize_t ob_size; // Py_ssize_t;
+  ssize_t ob_size = 0; // Py_ssize_t;
   // Roughly equivalnt to the following in GDB:
   //
   //   ((PyTupleObject*)$frame->f_code->co_varnames)->ob_item[0]
   //
   void* args_ptr;
   result |= bpf_probe_read_user(&args_ptr, sizeof(void*), code_ptr + offsets->PyCodeObject.co_varnames);
-  result |= bpf_probe_read_user(&ob_size, sizeof(ob_size), args_ptr + offsets->String.size); // String.size is PyVarObject.ob_size
+  result |= bpf_probe_read_user(&ob_size, sizeof(ob_size), args_ptr + 16); // PyVarObject.ob_size has always been 16
+  
   if (result == 0 && ob_size > 0) {
     result |= bpf_probe_read_user(&args_ptr, sizeof(void*), args_ptr + offsets->PyTupleObject.ob_item);
     result |= bpf_probe_read_user_str(argname, maxlen, args_ptr + offsets->String.data);
@@ -688,24 +696,40 @@ int read_python_stack(struct pt_regs* ctx) {
   void *cur_frame;
   void *cur_code_ptr;
 
-#pragma unroll
+  #pragma unroll
   for (int i = 0; i < PYTHON_STACK_FRAMES_PER_PROG; i++) {
     cur_frame = state->frame_ptr;
 
-    // read PyCodeObject first, if that fails, then no point reading next frame
-    bpf_probe_read_user(
-        &cur_code_ptr, sizeof(cur_code_ptr),
-        cur_frame + state->offsets.PyFrameObject.f_code);
-
-    // read current PyFrameObject filename/name
-    // The compiler substitutes a constant for `i` because the loop is unrolled. This guarantees we
-    // are always within the array bounds. On the other hand, `stack_len` is a variable, so the
-    // verifier can't guarantee it's within bounds without an explicit check.
-    const int32_t symbol_id = read_symbol(state, cur_frame, cur_code_ptr);
-    // to please the verifier...
-    if (event->stack_len < STACK_MAX_LEN) {
-      event->stack[event->stack_len++] = symbol_id;
+    char owner = FRAME_OWNED_BY_THREAD; // If owner not relevant for distro, assume frame good.
+    if (state->offsets.PyFrameObject.owner != -1) {
+      bpf_probe_read_user(
+        &owner, sizeof(owner),
+        cur_frame + state->offsets.PyFrameObject.owner);
     }
+    if (owner == FRAME_OWNED_BY_THREAD ||
+        owner == FRAME_OWNED_BY_GENERATOR ||
+        owner == FRAME_OWNED_BY_FRAME_OBJECT) {      
+      // read PyCodeObject first, if that fails, then no point reading next frame
+      bpf_probe_read_user(
+          &cur_code_ptr, sizeof(cur_code_ptr),
+          cur_frame + state->offsets.PyFrameObject.f_code);
+      
+      // read current PyFrameObject filename/name
+      // The compiler substitutes a constant for `i` because the loop is unrolled. This guarantees we
+      // are always within the array bounds. On the other hand, `stack_len` is a variable, so the
+      // verifier can't guarantee it's within bounds without an explicit check.
+      const int32_t symbol_id = read_symbol(state, cur_frame, cur_code_ptr);
+      // to please the verifier...
+      if (event->stack_len < STACK_MAX_LEN) {
+        event->stack[event->stack_len++] = symbol_id;
+      }
+    } else if (owner != FRAME_OWNED_BY_CSTACK) {
+      // This means frame ownership is unknown. Something is off.
+      if (event->stack_len < STACK_MAX_LEN) {
+        event->stack[event->stack_len++] = -1 * owner;
+      }
+    } // If it's CSTACK we just skip.
+    
 
     // read next PyFrameObject pointer, update in place
     bpf_probe_read_user(

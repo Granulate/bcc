@@ -154,6 +154,7 @@ struct struct_offsets {
     int64_t f_code;
     int64_t f_lineno;
     int64_t f_localsplus;
+    int64_t owner;
   } PyFrameObject;
   struct {
     int64_t co_filename;
@@ -224,6 +225,7 @@ typedef struct event {
 #define FRAME_CODE_IS_NULL ((int32_t)0x80000001)
   uintptr_t user_ip;
   uintptr_t user_sp;
+  uintptr_t user_bp;
   uint32_t user_stack_len;
   uint8_t raw_user_stack[]; // NOTICE: Field with variadic length - must be last!
 } Event;
@@ -247,7 +249,7 @@ struct PyPerfSample {
         kernelStackId(raw->kernel_stack_id),
         pyStackIds(raw->stack, raw->stack + raw->stack_len),
         nativeStack(raw->pid, raw->raw_user_stack, raw->user_stack_len,
-                    raw->user_ip, raw->user_sp) {}
+                    raw->user_ip, raw->user_sp, raw->user_bp) {}
 };
 
 }  // namespace pyperf
