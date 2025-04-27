@@ -25,7 +25,8 @@ typedef std::map<uint32_t, ProcSymbolsCacheEntry> ProcSymbolsCache;
 class NativeStackTrace {
  public:
   explicit NativeStackTrace(uint32_t pid, const uint8_t *raw_stack,
-                            size_t stack_len, uintptr_t ip, uintptr_t sp);
+                            size_t stack_len, uintptr_t ip, uintptr_t sp,
+                            uintptr_t bp);
 
   std::vector<std::string> get_stack_symbol() const;
   bool error_occured() const;
@@ -41,6 +42,7 @@ class NativeStackTrace {
   static size_t stack_len;
   static uintptr_t ip;
   static uintptr_t sp;
+  static uintptr_t bp;
   static ProcSymbolsCache procSymbolsCache;
 
   static int UPT_access_reg(unw_addr_space_t as, unw_regnum_t regnum,

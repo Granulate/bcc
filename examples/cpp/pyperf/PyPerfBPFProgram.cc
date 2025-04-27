@@ -168,6 +168,7 @@ struct event {
   int32_t stack[STACK_MAX_LEN];
   uintptr_t user_ip;
   uintptr_t user_sp;
+  uintptr_t user_bp;
   uint32_t user_stack_len;
   uint8_t raw_user_stack[__USER_STACKS_PAGES__ * PAGE_SIZE];
 #define FRAME_CODE_IS_NULL 0x80000001
@@ -345,6 +346,7 @@ on_event(struct pt_regs* ctx) {
 
     event->user_sp = user_regs.sp;
     event->user_ip = user_regs.ip;
+    event->user_bp = user_regs.bp;
     event->user_stack_len = 0;
 
     // Subtract 128 from sp for x86-ABI red zone

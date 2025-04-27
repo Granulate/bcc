@@ -31,6 +31,7 @@ const uint8_t *NativeStackTrace::stack = NULL;
 size_t NativeStackTrace::stack_len = 0;
 uintptr_t NativeStackTrace::sp = 0;
 uintptr_t NativeStackTrace::ip = 0;
+uintptr_t NativeStackTrace::bp = 0;
 ProcSymbolsCache NativeStackTrace::procSymbolsCache;
 bool NativeStackTrace::insert_dso_name = false;
 const static double ProcSymbolsCacheTTL_S = 60;
@@ -43,11 +44,12 @@ static double steady_time_since_epoch() {
 }
 
 NativeStackTrace::NativeStackTrace(uint32_t pid, const unsigned char *raw_stack,
-                                   size_t stack_len, uintptr_t ip, uintptr_t sp) : error_occurred(false) {
+                                   size_t stack_len, uintptr_t ip, uintptr_t sp, uintptr_t bp) : error_occurred(false) {
   NativeStackTrace::stack = raw_stack;
   NativeStackTrace::stack_len = stack_len;
   NativeStackTrace::ip = ip;
   NativeStackTrace::sp = sp;
+  NativeStackTrace::bp = bp;
 
   if (stack_len == 0) {
     return;
@@ -157,6 +159,15 @@ out:
 
 int NativeStackTrace::UPT_access_reg(unw_addr_space_t as, unw_regnum_t regnum,
                                      unw_word_t *valp, int write, void *arg) {
+  if (regnum == UNW_X86_64_RBP) {
+    if (write) {
+      logInfo(2, "Libunwind attempts to write to BP\n");
+      return -UNW_EINVAL;
+    }
+
+    *valp = NativeStackTrace::bp;
+    return 0;
+  }
   if (regnum == UNW_REG_SP) {
     if (write) {
       logInfo(2, "Libunwind attempts to write to SP\n");
@@ -234,7 +245,7 @@ int NativeStackTrace::UPT_access_mem(unw_addr_space_t as, unw_word_t addr,
 int NativeStackTrace::UPT_access_fpreg(unw_addr_space_t as, unw_regnum_t reg, unw_fpreg_t *val,
                                        int write, void *arg) {
   logInfo(3, "Libunwind unexpected UPT_access_fpreg() attempt\n");
-  return -UNW_EINVAL;
+  return -UNW_EINVAL; 
 }
 
 int NativeStackTrace::UPT_resume(unw_addr_space_t as, unw_cursor_t *c, void *arg) {
