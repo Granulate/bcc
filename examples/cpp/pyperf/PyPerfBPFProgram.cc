@@ -256,9 +256,34 @@ get_task_thread_id(struct task_struct const *task, enum pthreads_impl pthreads_i
 
   return ERROR_NONE;
 
-#else  // __x86_64__
+#elif defined(__aarch64__)
+  // On aarch64, the TLS base is stored in task->thread.uw.tp_value (TPIDR_EL0).
+  // FS_OFS here is the offset of tp_value within task_struct, discovered at runtime
+  // by the get_tp_offset helper.
+  uint64_t tp_value;
+  bpf_probe_read_kernel(&tp_value, sizeof(tp_value), (u8*)task + FS_OFS);
+
+  // On aarch64 glibc: pthread_self() = tp_value - sizeof(struct pthread)
+  // On aarch64 musl:  pthread_self() = tp_value - sizeof(struct __pthread)
+  // PTHREAD_STRUCT_SIZE is passed as a compile-time define by the driver.
+  switch (pthreads_impl) {
+  case PTI_GLIBC:
+  case PTI_MUSL:
+    *thread_id = tp_value - PTHREAD_STRUCT_SIZE;
+    break;
+  default:
+    return ERROR_INVALID_PTHREADS_IMPL;
+  }
+
+  if (tp_value == 0) {
+    return ERROR_BAD_FSBASE;
+  }
+
+  return ERROR_NONE;
+
+#else
 #error "Unsupported platform"
-#endif // __x86_64__
+#endif
 }
 
 // this function is trivial, but we need to do map lookup in separate function,
@@ -320,6 +345,7 @@ on_event(struct pt_regs* ctx) {
     // Get raw native user stack
     struct pt_regs user_regs;
 
+#ifdef __x86_64__
     // ebpf doesn't allow direct access to ctx->cs, so we need to copy it
     int cs;
     bpf_probe_read_kernel(&cs, sizeof(cs), &(ctx->cs));
@@ -351,6 +377,45 @@ on_event(struct pt_regs* ctx) {
 
     // Subtract 128 from sp for x86-ABI red zone
     uintptr_t top_of_stack = user_regs.sp - 128;
+
+#elif defined(__aarch64__)
+    // On aarch64, BCC's compat header defines an x86_64 struct pt_regs.
+    // We need to reinterpret ctx as the actual aarch64 user_pt_regs layout:
+    //   u64 regs[31];  // offset 0, size 248
+    //   u64 sp;        // offset 248
+    //   u64 pc;        // offset 256
+    //   u64 pstate;    // offset 264
+    uint64_t *raw = (uint64_t *)ctx;
+    uint64_t user_sp_val, user_pc_val, user_fp_val, pstate;
+
+    // Read pstate (index 33 = offset 264)
+    bpf_probe_read_kernel(&pstate, sizeof(pstate), &raw[33]);
+
+    if ((pstate & 0xf) == 0) {
+      // EL0 - user mode context
+      bpf_probe_read_kernel(&user_sp_val, sizeof(user_sp_val), &raw[31]); // sp
+      bpf_probe_read_kernel(&user_pc_val, sizeof(user_pc_val), &raw[32]); // pc
+      bpf_probe_read_kernel(&user_fp_val, sizeof(user_fp_val), &raw[29]); // x29 = FP
+    }
+    else {
+      // Kernel mode - read user regs from kernel stack via task_pt_regs
+      unsigned long stack_base;
+      bpf_probe_read_kernel(&stack_base, sizeof(stack_base),
+                            (void*)((unsigned long)task + STACK_OFS));
+      uint64_t *user_raw = (uint64_t *)((stack_base + THREAD_SIZE) - 272); // sizeof(pt_regs)=272
+      bpf_probe_read_kernel(&user_sp_val, sizeof(user_sp_val), &user_raw[31]);
+      bpf_probe_read_kernel(&user_pc_val, sizeof(user_pc_val), &user_raw[32]);
+      bpf_probe_read_kernel(&user_fp_val, sizeof(user_fp_val), &user_raw[29]);
+    }
+
+    event->user_sp = user_sp_val;
+    event->user_ip = user_pc_val;
+    event->user_bp = user_fp_val;
+    event->user_stack_len = 0;
+
+    // No red zone on aarch64 Linux ABI
+    uintptr_t top_of_stack = user_sp_val;
+#endif
 
     // Copy one page at the time - if one fails we don't want to lose the others
     int i;

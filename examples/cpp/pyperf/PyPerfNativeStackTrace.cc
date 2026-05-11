@@ -159,6 +159,7 @@ out:
 
 int NativeStackTrace::UPT_access_reg(unw_addr_space_t as, unw_regnum_t regnum,
                                      unw_word_t *valp, int write, void *arg) {
+#if defined(__x86_64__)
   if (regnum == UNW_X86_64_RBP) {
     if (write) {
       logInfo(2, "Libunwind attempts to write to BP\n");
@@ -168,6 +169,33 @@ int NativeStackTrace::UPT_access_reg(unw_addr_space_t as, unw_regnum_t regnum,
     *valp = NativeStackTrace::bp;
     return 0;
   }
+#elif defined(__aarch64__)
+  if (regnum == UNW_AARCH64_X29) {
+    if (write) {
+      logInfo(2, "Libunwind attempts to write to X29/FP\n");
+      return -UNW_EINVAL;
+    }
+
+    *valp = NativeStackTrace::bp;
+    return 0;
+  }
+  if (regnum == UNW_AARCH64_SP || regnum == UNW_REG_SP) {
+    if (write) return -UNW_EINVAL;
+    *valp = NativeStackTrace::sp;
+    return 0;
+  }
+  if (regnum == UNW_AARCH64_PC) {
+    if (write) return -UNW_EINVAL;
+    *valp = NativeStackTrace::ip;
+    return 0;
+  }
+  if (regnum == UNW_AARCH64_X30 || regnum == UNW_REG_IP) {
+    // X30 = link register = return address. Use IP as best approximation.
+    if (write) return -UNW_EINVAL;
+    *valp = NativeStackTrace::ip;
+    return 0;
+  }
+#endif
   if (regnum == UNW_REG_SP) {
     if (write) {
       logInfo(2, "Libunwind attempts to write to SP\n");
@@ -199,8 +227,12 @@ int NativeStackTrace::UPT_access_mem(unw_addr_space_t as, unw_word_t addr,
     return -UNW_EINVAL;
   }
 
-  // Subtract 128 for x86-ABI red zone
+  // Subtract 128 for x86-ABI red zone (no red zone on aarch64)
+#if defined(__x86_64__)
   const uintptr_t top_of_stack = NativeStackTrace::sp - 128;
+#elif defined(__aarch64__)
+  const uintptr_t top_of_stack = NativeStackTrace::sp;
+#endif
   const uintptr_t stack_start = top_of_stack & ~(getpagesize() - 1);
   const uintptr_t stack_end = stack_start + NativeStackTrace::stack_len;
 

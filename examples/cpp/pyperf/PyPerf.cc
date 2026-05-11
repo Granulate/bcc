@@ -118,6 +118,7 @@ int main(int argc, char** argv) {
   std::string output = "";
   uint64_t fsOffset = 0;
   uint64_t stackOffset = 0;
+  uint64_t pthreadStructSize = 0;
   bool insertDsoName = false;
 
   while (true) {
@@ -138,6 +139,7 @@ int main(int argc, char** argv) {
     found = found || parseStrArg({"-o", "--output"}, output);
     found = found || parseIntArg({"--fs-offset"}, fsOffset);
     found = found || parseIntArg({"--stack-offset"}, stackOffset);
+    found = found || parseIntArg({"--pthread-struct-size"}, pthreadStructSize);
     found = found || parseFlag({"--insert-dso-name"}, insertDsoName);
     if (!found) {
       std::fprintf(stderr, "Unexpected argument: %s\n", argv[pos]);
@@ -182,7 +184,7 @@ int main(int argc, char** argv) {
     ebpf::pyperf::PyPerfProfiler profiler;
     profiler.update_interval = std::chrono::seconds{updateIntervalSecs};
 
-    auto res = profiler.init(symbolsMapSize, eventsBufferPages, kernelStacksMapSize, userStacksPages, fsOffset, stackOffset, insertDsoName);
+    auto res = profiler.init(symbolsMapSize, eventsBufferPages, kernelStacksMapSize, userStacksPages, fsOffset, stackOffset, insertDsoName, pthreadStructSize);
     if (res != ebpf::pyperf::PyPerfProfiler::PyPerfResult::SUCCESS) {
       std::exit((int)res);
     }
