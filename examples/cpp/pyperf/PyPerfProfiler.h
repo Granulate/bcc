@@ -68,7 +68,7 @@ class PyPerfProfiler {
   PyPerfResult init(unsigned int symbolsMapSize, unsigned int eventsBufferPages,
                     unsigned int kernelStacksMapSize, unsigned int userStacksPages,
                     unsigned int fsOffset, unsigned int stackOffset,
-                    bool insertDsoName);
+                    bool insertDsoName, unsigned int pthreadStructSize = 0);
 
   PyPerfResult profile(int64_t sampleRate, int64_t sampleFreq, int64_t duration,
                        PyPerfSampleProcessor* processor);

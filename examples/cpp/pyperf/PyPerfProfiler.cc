@@ -167,7 +167,7 @@ void handleLostSamplesCallback(void* cb_cookie, uint64_t lost_cnt) {
 PyPerfProfiler::PyPerfResult PyPerfProfiler::init(unsigned int symbolsMapSize, unsigned int eventsBufferPages,
                                                   unsigned int kernelStacksMapSize, unsigned int userStacksPages,
                                                   unsigned int fsOffset, unsigned int stackOffset,
-                                                  bool insertDsoName) {
+                                                  bool insertDsoName, unsigned int pthreadStructSize) {
   std::vector<std::string> cflags;
   cflags.emplace_back(kNumCpusFlag + std::to_string(::sysconf(_SC_NPROCESSORS_ONLN)));
   cflags.emplace_back(kSymbolsHashSizeFlag + std::to_string(symbolsMapSize));
@@ -177,6 +177,9 @@ PyPerfProfiler::PyPerfResult PyPerfProfiler::init(unsigned int symbolsMapSize, u
   cflags.emplace_back(kGetThreadStateProgIdxFlag + std::to_string(kGetThreadStateProgIdx));
   cflags.emplace_back(kFsOffsetFlag + std::to_string(fsOffset));
   cflags.emplace_back(kStackOffsetFlag + std::to_string(stackOffset));
+  if (pthreadStructSize > 0) {
+    cflags.emplace_back("-DPTHREAD_STRUCT_SIZE=" + std::to_string(pthreadStructSize));
+  }
 
   if (insertDsoName) {
     NativeStackTrace::enable_dso_reporting();
